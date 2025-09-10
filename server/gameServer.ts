@@ -58,9 +58,32 @@ export class GameServer {
           
           const room = this.gameLogic.getRoom(roomId);
           if (room) {
+            // For PvE mode, add AI opponent and auto-ready the player
+            if (mode === 'pve') {
+              const aiPlayer: Player = {
+                id: 'ai_' + roomId,
+                name: 'AI Opponent',
+                score: 0,
+                streak: 0,
+                isReady: true
+              };
+              this.gameLogic.addPlayerToRoom(roomId, aiPlayer);
+              // Auto-ready the human player for PvE
+              this.gameLogic.playerReady(roomId, socket.id);
+              
+              // Start game immediately for PvE
+              setTimeout(() => {
+                const updatedRoom = this.gameLogic.getRoom(roomId);
+                if (updatedRoom && updatedRoom.gameState === 'playing' && updatedRoom.currentQuestion) {
+                  socket.emit('gameStarted');
+                  socket.emit('newQuestion', updatedRoom.currentQuestion);
+                }
+              }, 1000);
+            }
+            
             this.io.to(roomId).emit('roomJoined', room);
             this.io.to(roomId).emit('playersUpdated', room.players);
-            console.log(`Player ${socket.id} joined room ${roomId}`);
+            console.log(`Player ${socket.id} joined room ${roomId} (${mode} mode)`);
           }
         } else {
           socket.emit('matchmakingStarted');
