@@ -20,10 +20,23 @@ export function GameLobby() {
 
   const handleStartPvE = () => {
     if (playerName.trim()) {
-      setSocketPlayerName(playerName);
-      // Join PvE matchmaking with default settings
-      joinMatchmaking('pve', 'general', 'medium');
-      setPhase('playing');
+      // Ensure socket is connected before proceeding
+      const { isConnected } = useSocket.getState();
+      if (!isConnected) {
+        console.log('Socket not connected, connecting first...');
+        const { connect } = useSocket.getState();
+        connect();
+        // Wait for connection and then proceed
+        setTimeout(() => {
+          setSocketPlayerName(playerName);
+          joinMatchmaking('pve', 'general', 'medium');
+          setPhase('playing');
+        }, 1000);
+      } else {
+        setSocketPlayerName(playerName);
+        joinMatchmaking('pve', 'general', 'medium');
+        setPhase('playing');
+      }
     }
   };
 
