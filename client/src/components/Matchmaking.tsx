@@ -13,7 +13,7 @@ export function Matchmaking() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchTime, setSearchTime] = useState(0);
 
-  const { currentRoom, joinMatchmaking, leaveMatchmaking, readyUp } = useSocket();
+  const { currentRoom, joinMatchmaking, leaveMatchmaking, readyUp, setPlayerName } = useSocket();
   const { setPhase } = useTrivia();
 
   useEffect(() => {
@@ -29,6 +29,9 @@ export function Matchmaking() {
   const handleStartMatchmaking = () => {
     setIsSearching(true);
     setSearchTime(0);
+    // Set player name before joining matchmaking
+    const { playerName } = useTrivia.getState();
+    setPlayerName(playerName);
     joinMatchmaking('pvp', selectedCategory, selectedDifficulty);
   };
 

@@ -3,12 +3,14 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { useTrivia } from '../lib/stores/useTrivia';
+import { useSocket } from '../lib/stores/useSocket';
 import { CategorySelect } from './CategorySelect';
 import { Leaderboard } from './Leaderboard';
 import { Trophy, Users, Zap, BookOpen } from 'lucide-react';
 
 export function GameLobby() {
   const { playerName, setPlayerName, setPhase } = useTrivia();
+  const { setPlayerName: setSocketPlayerName } = useSocket();
 
   const handleStartPvP = () => {
     if (playerName.trim()) {
@@ -18,6 +20,7 @@ export function GameLobby() {
 
   const handleStartPvE = () => {
     if (playerName.trim()) {
+      setSocketPlayerName(playerName);
       setPhase('playing');
     }
   };

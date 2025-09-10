@@ -1,26 +1,29 @@
-import { users, gameStats, leaderboards, type User, type InsertUser, type GameStats, type InsertGameStats, type Leaderboard, type InsertLeaderboard } from "@shared/schema";
+import { LeaderboardEntry } from '../shared/schema';
+
+export interface SimpleGameStats {
+  playerId: string;
+  totalGames: number;
+  wins: number;
+  losses: number;
+  averageScore: number;
+  bestStreak: number;
+  favoriteCategory: string;
+}
 
 export interface IStorage {
-  getUser(id: number): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  getPlayerStats(playerId: string): Promise<GameStats | undefined>;
-  updatePlayerStats(playerId: string, stats: Partial<GameStats>): Promise<GameStats>;
-  getLeaderboard(): Promise<Leaderboard[]>;
-  updateLeaderboard(playerId: string, score: number, gamesWon: number, bestStreak: number): Promise<void>;
+  getPlayerStats(playerId: string): Promise<SimpleGameStats | undefined>;
+  updatePlayerStats(playerId: string, stats: Partial<SimpleGameStats>): Promise<SimpleGameStats>;
+  getLeaderboard(): Promise<LeaderboardEntry[]>;
+  updateLeaderboard(playerId: string, playerName: string, score: number, gamesWon: number, bestStreak: number): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private playerStats: Map<string, GameStats>;
-  private leaderboard: Map<string, Leaderboard>;
-  currentId: number;
+  private playerStats: Map<string, SimpleGameStats>;
+  private leaderboard: Map<string, LeaderboardEntry>;
 
   constructor() {
-    this.users = new Map();
     this.playerStats = new Map();
     this.leaderboard = new Map();
-    this.currentId = 1;
     
     // Initialize with some sample data
     this.initializeSampleData();
@@ -36,33 +39,20 @@ export class MemStorage implements IStorage {
       { playerId: '5', playerName: 'Genius', totalScore: 11750, gamesWon: 58, bestStreak: 8, rank: 5 }
     ];
 
-    sampleLeaderboard.forEach(entry => {
-      this.leaderboard.set(entry.playerId, entry);
+    sampleLeaderboard.forEach((entry, index) => {
+      this.leaderboard.set(entry.playerId, {
+        ...entry,
+        rank: index + 1
+      });
     });
   }
 
-  async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
-  }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentId++;
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
-  }
-
-  async getPlayerStats(playerId: string): Promise<GameStats | undefined> {
+  async getPlayerStats(playerId: string): Promise<SimpleGameStats | undefined> {
     return this.playerStats.get(playerId);
   }
 
-  async updatePlayerStats(playerId: string, stats: Partial<GameStats>): Promise<GameStats> {
+  async updatePlayerStats(playerId: string, stats: Partial<SimpleGameStats>): Promise<SimpleGameStats> {
     const existing = this.playerStats.get(playerId) || {
       playerId,
       totalGames: 0,
@@ -79,12 +69,12 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
-  async getLeaderboard(): Promise<Leaderboard[]> {
+  async getLeaderboard(): Promise<LeaderboardEntry[]> {
     const entries = Array.from(this.leaderboard.values());
     return entries.sort((a, b) => b.totalScore - a.totalScore);
   }
 
-  async updateLeaderboard(playerId: string, score: number, gamesWon: number, bestStreak: number): Promise<void> {
+  async updateLeaderboard(playerId: string, playerName: string, score: number, gamesWon: number, bestStreak: number): Promise<void> {
     const existing = this.leaderboard.get(playerId);
     
     if (existing) {
@@ -92,9 +82,6 @@ export class MemStorage implements IStorage {
       existing.gamesWon = Math.max(existing.gamesWon, gamesWon);
       existing.bestStreak = Math.max(existing.bestStreak, bestStreak);
     } else {
-      // Get player name from users or use default
-      const playerName = `Player${playerId.substr(0, 6)}`;
-      
       this.leaderboard.set(playerId, {
         playerId,
         playerName,

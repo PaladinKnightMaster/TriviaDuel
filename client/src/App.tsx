@@ -18,24 +18,24 @@ function App() {
       setPhase('playing');
     });
 
-    socketClient.on('newQuestion', (question) => {
+    socketClient.on('newQuestion', (question: any) => {
       setCurrentQuestion(question);
     });
 
-    socketClient.on('gameEnded', (results) => {
+    socketClient.on('gameEnded', (results: any) => {
       setPhase('results');
       console.log('Game ended:', results);
     });
 
-    socketClient.on('playersUpdated', (players) => {
+    socketClient.on('playersUpdated', (players: any) => {
       updatePlayers(players);
     });
 
     return () => {
-      socketClient.off('gameStarted');
-      socketClient.off('newQuestion');
-      socketClient.off('gameEnded');
-      socketClient.off('playersUpdated');
+      socketClient.off('gameStarted', () => {});
+      socketClient.off('newQuestion', () => {});
+      socketClient.off('gameEnded', () => {});
+      socketClient.off('playersUpdated', () => {});
     };
   }, [connect, setPhase, setCurrentQuestion, updatePlayers]);
 

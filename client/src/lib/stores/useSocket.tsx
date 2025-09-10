@@ -10,6 +10,7 @@ interface SocketState {
   // Actions
   connect: () => void;
   disconnect: () => void;
+  setPlayerName: (name: string) => void;
   joinMatchmaking: (mode: 'pvp' | 'pve', category: string, difficulty: string) => void;
   leaveMatchmaking: () => void;
   answerQuestion: (questionId: string, selectedAnswer: number) => void;
@@ -48,6 +49,10 @@ export const useSocket = create<SocketState>((set, get) => ({
   disconnect: () => {
     socketClient.disconnect();
     set({ isConnected: false, playerId: null, currentRoom: null });
+  },
+
+  setPlayerName: (name) => {
+    socketClient.emit('setPlayerName', name);
   },
 
   joinMatchmaking: (mode, category, difficulty) => {

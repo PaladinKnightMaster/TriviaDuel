@@ -2,7 +2,7 @@ import { io, Socket } from 'socket.io-client';
 
 class SocketClient {
   private socket: Socket | null = null;
-  private listeners: Map<string, Function[]> = new Map();
+  private listeners: Map<string, ((...args: any[]) => void)[]> = new Map();
 
   connect() {
     if (this.socket?.connected) return this.socket;
@@ -37,18 +37,18 @@ class SocketClient {
     }
   }
 
-  on(event: string, callback: Function) {
+  on(event: string, callback: (...args: any[]) => void) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
     }
     this.listeners.get(event)!.push(callback);
 
     if (this.socket?.connected) {
-      this.socket.on(event, callback as any);
+      this.socket.on(event, callback);
     }
   }
 
-  off(event: string, callback: Function) {
+  off(event: string, callback: (...args: any[]) => void) {
     const callbacks = this.listeners.get(event);
     if (callbacks) {
       const index = callbacks.indexOf(callback);

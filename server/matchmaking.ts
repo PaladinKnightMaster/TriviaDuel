@@ -54,8 +54,8 @@ export class MatchmakingService {
   }
 
   leaveQueue(playerId: string): void {
-    for (const [queueKey, queue] of this.queues) {
-      const playerIndex = queue.players.findIndex(p => p.id === playerId);
+    for (const [queueKey, queue] of Array.from(this.queues.entries())) {
+      const playerIndex = queue.players.findIndex((p: Player) => p.id === playerId);
       if (playerIndex !== -1) {
         queue.players.splice(playerIndex, 1);
         
