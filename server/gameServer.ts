@@ -60,6 +60,7 @@ export class GameServer {
           if (room) {
             // For PvE mode, add AI opponent and auto-ready the player
             if (mode === 'pve') {
+              console.log(`Setting up PvE game for room ${roomId}`);
               const aiPlayer: Player = {
                 id: 'ai_' + roomId,
                 name: 'AI Opponent',
@@ -68,17 +69,32 @@ export class GameServer {
                 isReady: true
               };
               this.gameLogic.addPlayerToRoom(roomId, aiPlayer);
+              console.log(`AI player added to room ${roomId}`);
+              
               // Auto-ready the human player for PvE
-              this.gameLogic.playerReady(roomId, socket.id);
+              const readyRoom = this.gameLogic.playerReady(roomId, socket.id);
+              console.log(`Player ready status set, game state: ${readyRoom?.gameState}`);
               
               // Start game immediately for PvE
               setTimeout(() => {
                 const updatedRoom = this.gameLogic.getRoom(roomId);
+                console.log(`Checking PvE game start - State: ${updatedRoom?.gameState}, Question: ${updatedRoom?.currentQuestion ? 'Yes' : 'No'}`);
                 if (updatedRoom && updatedRoom.gameState === 'playing' && updatedRoom.currentQuestion) {
+                  console.log(`Starting PvE game for ${socket.id}`);
                   socket.emit('gameStarted');
                   socket.emit('newQuestion', updatedRoom.currentQuestion);
+                } else {
+                  console.log(`PvE game not ready - manually starting game`);
+                  // Force start the game if it didn't start automatically
+                  this.gameLogic.startGame(roomId);
+                  const finalRoom = this.gameLogic.getRoom(roomId);
+                  if (finalRoom?.currentQuestion) {
+                    socket.emit('gameStarted');
+                    socket.emit('newQuestion', finalRoom.currentQuestion);
+                    console.log(`PvE game force started for ${socket.id}`);
+                  }
                 }
-              }, 1000);
+              }, 1500);
             }
             
             this.io.to(roomId).emit('roomJoined', room);
