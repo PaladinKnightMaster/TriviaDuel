@@ -5,6 +5,7 @@ import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { useTrivia } from '../lib/stores/useTrivia';
 import { useSocket } from '../lib/stores/useSocket';
+import { socketClient } from '../lib/socket';
 import { Clock, Trophy, Flame, Users } from 'lucide-react';
 
 export function TriviaGame() {
@@ -40,8 +41,7 @@ export function TriviaGame() {
 
   // Listen for game end events
   useEffect(() => {
-    const { socket } = useSocket();
-    if (!socket) return;
+    if (!socketClient) return;
     
     const handleGameEnd = (results: any) => {
       console.log('Game ended:', results);
@@ -60,12 +60,12 @@ export function TriviaGame() {
       setTimeout(() => setShowResults(false), 2000);
     };
 
-    socket.on('gameEnded', handleGameEnd);
-    socket.on('answerResult', handleAnswerResult);
+    socketClient.on('gameEnded', handleGameEnd);
+    socketClient.on('answerResult', handleAnswerResult);
 
     return () => {
-      socket.off('gameEnded', handleGameEnd);
-      socket.off('answerResult', handleAnswerResult);
+      socketClient.off('gameEnded', handleGameEnd);
+      socketClient.off('answerResult', handleAnswerResult);
     };
   }, [setPhase]);
 
