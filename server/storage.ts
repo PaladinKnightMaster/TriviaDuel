@@ -1,4 +1,7 @@
-import { LeaderboardEntry } from '../shared/schema';
+import { drizzle } from 'drizzle-orm/neon-http';
+import { neon } from '@neondatabase/serverless';
+import { users, gameStats, leaderboards, type User, type InsertUser, type GameStats, type InsertGameStats, type Leaderboard, type InsertLeaderboard, LeaderboardEntry } from '../shared/schema';
+import { eq, desc } from 'drizzle-orm';
 
 export interface SimpleGameStats {
   playerId: string;
@@ -10,6 +13,10 @@ export interface SimpleGameStats {
   favoriteCategory: string;
 }
 
+// Initialize database connection
+const sql = neon(process.env.DATABASE_URL!);
+const db = drizzle(sql);
+
 export interface IStorage {
   getPlayerStats(playerId: string): Promise<SimpleGameStats | undefined>;
   updatePlayerStats(playerId: string, stats: Partial<SimpleGameStats>): Promise<SimpleGameStats>;
@@ -17,13 +24,13 @@ export interface IStorage {
   updateLeaderboard(playerId: string, playerName: string, score: number, gamesWon: number, bestStreak: number): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private playerStats: Map<string, SimpleGameStats>;
-  private leaderboard: Map<string, LeaderboardEntry>;
+export class DatabaseStorage implements IStorage {
+  private fallbackStats: Map<string, SimpleGameStats>;
+  private fallbackLeaderboard: Map<string, LeaderboardEntry>;
 
   constructor() {
-    this.playerStats = new Map();
-    this.leaderboard = new Map();
+    this.fallbackStats = new Map();
+    this.fallbackLeaderboard = new Map();
     
     // Initialize with some sample data
     this.initializeSampleData();
@@ -40,7 +47,7 @@ export class MemStorage implements IStorage {
     ];
 
     sampleLeaderboard.forEach((entry, index) => {
-      this.leaderboard.set(entry.playerId, {
+      this.fallbackLeaderboard.set(entry.playerId, {
         ...entry,
         rank: index + 1
       });
@@ -49,55 +56,150 @@ export class MemStorage implements IStorage {
 
 
   async getPlayerStats(playerId: string): Promise<SimpleGameStats | undefined> {
-    return this.playerStats.get(playerId);
+    try {
+      const result = await db.select().from(gameStats).where(eq(gameStats.playerId, playerId)).limit(1);
+      if (result.length > 0) {
+        const stats = result[0];
+        return {
+          playerId: stats.playerId,
+          totalGames: stats.totalGames || 0,
+          wins: stats.wins || 0,
+          losses: stats.losses || 0,
+          averageScore: stats.averageScore || 0,
+          bestStreak: stats.bestStreak || 0,
+          favoriteCategory: stats.favoriteCategory || 'general'
+        };
+      }
+    } catch (error) {
+      console.error('Database error, using fallback:', error);
+    }
+    return this.fallbackStats.get(playerId);
   }
 
   async updatePlayerStats(playerId: string, stats: Partial<SimpleGameStats>): Promise<SimpleGameStats> {
-    const existing = this.playerStats.get(playerId) || {
-      playerId,
-      totalGames: 0,
-      wins: 0,
-      losses: 0,
-      averageScore: 0,
-      bestStreak: 0,
-      favoriteCategory: 'general'
-    };
+    try {
+      // Try to get existing stats from database
+      const existing = await this.getPlayerStats(playerId) || {
+        playerId,
+        totalGames: 0,
+        wins: 0,
+        losses: 0,
+        averageScore: 0,
+        bestStreak: 0,
+        favoriteCategory: 'general'
+      };
 
-    const updated = { ...existing, ...stats };
-    this.playerStats.set(playerId, updated);
-    
-    return updated;
+      const updated = { ...existing, ...stats };
+
+      // Try to upsert to database
+      await db.insert(gameStats)
+        .values({
+          playerId,
+          totalGames: updated.totalGames,
+          wins: updated.wins,
+          losses: updated.losses,
+          averageScore: updated.averageScore,
+          bestStreak: updated.bestStreak,
+          favoriteCategory: updated.favoriteCategory
+        })
+        .onConflictDoUpdate({
+          target: gameStats.playerId,
+          set: {
+            totalGames: updated.totalGames,
+            wins: updated.wins,
+            losses: updated.losses,
+            averageScore: updated.averageScore,
+            bestStreak: updated.bestStreak,
+            favoriteCategory: updated.favoriteCategory
+          }
+        });
+
+      return updated;
+    } catch (error) {
+      console.error('Database error, using fallback:', error);
+      // Fallback to memory storage
+      const existing = this.fallbackStats.get(playerId) || {
+        playerId,
+        totalGames: 0,
+        wins: 0,
+        losses: 0,
+        averageScore: 0,
+        bestStreak: 0,
+        favoriteCategory: 'general'
+      };
+      const updated = { ...existing, ...stats };
+      this.fallbackStats.set(playerId, updated);
+      return updated;
+    }
   }
 
   async getLeaderboard(): Promise<LeaderboardEntry[]> {
-    const entries = Array.from(this.leaderboard.values());
-    return entries.sort((a, b) => b.totalScore - a.totalScore);
+    try {
+      const result = await db.select().from(leaderboards).orderBy(desc(leaderboards.totalScore)).limit(100);
+      return result.map((entry, index) => ({
+        playerId: entry.playerId,
+        playerName: entry.playerName,
+        totalScore: entry.totalScore || 0,
+        gamesWon: entry.gamesWon || 0,
+        bestStreak: entry.bestStreak || 0,
+        rank: index + 1
+      }));
+    } catch (error) {
+      console.error('Database error, using fallback:', error);
+      const entries = Array.from(this.fallbackLeaderboard.values());
+      return entries.sort((a, b) => b.totalScore - a.totalScore);
+    }
   }
 
   async updateLeaderboard(playerId: string, playerName: string, score: number, gamesWon: number, bestStreak: number): Promise<void> {
-    const existing = this.leaderboard.get(playerId);
-    
-    if (existing) {
-      existing.totalScore = Math.max(existing.totalScore, score);
-      existing.gamesWon = Math.max(existing.gamesWon, gamesWon);
-      existing.bestStreak = Math.max(existing.bestStreak, bestStreak);
-    } else {
-      this.leaderboard.set(playerId, {
-        playerId,
-        playerName,
-        totalScore: score,
-        gamesWon,
-        bestStreak,
-        rank: 1 // Will be recalculated
-      });
-    }
+    try {
+      await db.insert(leaderboards)
+        .values({
+          playerId,
+          playerName,
+          totalScore: score,
+          gamesWon,
+          bestStreak,
+          rank: 1 // Will be recalculated
+        })
+        .onConflictDoUpdate({
+          target: leaderboards.playerId,
+          set: {
+            playerName,
+            totalScore: score,
+            gamesWon,
+            bestStreak
+          }
+        });
 
-    // Recalculate ranks
-    const entries = Array.from(this.leaderboard.values()).sort((a, b) => b.totalScore - a.totalScore);
-    entries.forEach((entry, index) => {
-      entry.rank = index + 1;
-    });
+      // Recalculate ranks
+      const allEntries = await db.select().from(leaderboards).orderBy(desc(leaderboards.totalScore));
+      for (let i = 0; i < allEntries.length; i++) {
+        await db.update(leaderboards)
+          .set({ rank: i + 1 })
+          .where(eq(leaderboards.playerId, allEntries[i].playerId));
+      }
+    } catch (error) {
+      console.error('Database error, using fallback:', error);
+      // Fallback to memory storage
+      const existing = this.fallbackLeaderboard.get(playerId);
+      
+      if (existing) {
+        existing.totalScore = Math.max(existing.totalScore, score);
+        existing.gamesWon = Math.max(existing.gamesWon, gamesWon);
+        existing.bestStreak = Math.max(existing.bestStreak, bestStreak);
+      } else {
+        this.fallbackLeaderboard.set(playerId, {
+          playerId,
+          playerName,
+          totalScore: score,
+          gamesWon,
+          bestStreak,
+          rank: 1
+        });
+      }
+    }
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
