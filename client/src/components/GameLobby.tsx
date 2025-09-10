@@ -10,7 +10,7 @@ import { Trophy, Users, Zap, BookOpen } from 'lucide-react';
 
 export function GameLobby() {
   const { playerName, setPlayerName, setPhase } = useTrivia();
-  const { setPlayerName: setSocketPlayerName } = useSocket();
+  const { setPlayerName: setSocketPlayerName, joinMatchmaking } = useSocket();
 
   const handleStartPvP = () => {
     if (playerName.trim()) {
@@ -21,6 +21,8 @@ export function GameLobby() {
   const handleStartPvE = () => {
     if (playerName.trim()) {
       setSocketPlayerName(playerName);
+      // Join PvE matchmaking with default settings
+      joinMatchmaking('pve', 'general', 'medium');
       setPhase('playing');
     }
   };
