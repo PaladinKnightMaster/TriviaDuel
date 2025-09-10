@@ -15,10 +15,13 @@ export function TriviaGame() {
     isAnswered,
     players,
     selectAnswer,
-    setTimeRemaining
+    setTimeRemaining,
+    setPhase
   } = useTrivia();
 
-  const { answerQuestion } = useSocket();
+  const { answerQuestion, currentRoom } = useSocket();
+  const [showResults, setShowResults] = useState(false);
+  const [gameEnded, setGameEnded] = useState(false);
 
   useEffect(() => {
     if (currentQuestion && timeRemaining > 0 && !isAnswered) {
@@ -27,7 +30,44 @@ export function TriviaGame() {
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [currentQuestion, timeRemaining, isAnswered, setTimeRemaining]);
+    
+    // Auto-submit when time runs out
+    if (currentQuestion && timeRemaining === 0 && !isAnswered) {
+      selectAnswer(-1); // -1 indicates no answer/timeout
+      answerQuestion(currentQuestion.id, -1);
+    }
+  }, [currentQuestion, timeRemaining, isAnswered, setTimeRemaining, selectAnswer, answerQuestion]);
+
+  // Listen for game end events
+  useEffect(() => {
+    const { socket } = useSocket();
+    if (!socket) return;
+    
+    const handleGameEnd = (results: any) => {
+      console.log('Game ended:', results);
+      setGameEnded(true);
+      setShowResults(true);
+      
+      // Show results for 5 seconds then go back to menu
+      setTimeout(() => {
+        setPhase('menu');
+      }, 5000);
+    };
+
+    const handleAnswerResult = (result: any) => {
+      console.log('Answer result:', result);
+      setShowResults(true);
+      setTimeout(() => setShowResults(false), 2000);
+    };
+
+    socket.on('gameEnded', handleGameEnd);
+    socket.on('answerResult', handleAnswerResult);
+
+    return () => {
+      socket.off('gameEnded', handleGameEnd);
+      socket.off('answerResult', handleAnswerResult);
+    };
+  }, [setPhase]);
 
   const handleAnswerSelect = (answerIndex: number) => {
     if (!isAnswered && currentQuestion) {

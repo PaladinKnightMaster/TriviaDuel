@@ -11,11 +11,16 @@ export interface SimpleGameStats {
   averageScore: number;
   bestStreak: number;
   favoriteCategory: string;
+  rating: number;
+  tier: string;
 }
 
 // Initialize database connection
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql);
+
+// Export database connection for other services
+export { db };
 
 export interface IStorage {
   getPlayerStats(playerId: string): Promise<SimpleGameStats | undefined>;
@@ -67,7 +72,9 @@ export class DatabaseStorage implements IStorage {
           losses: stats.losses || 0,
           averageScore: stats.averageScore || 0,
           bestStreak: stats.bestStreak || 0,
-          favoriteCategory: stats.favoriteCategory || 'general'
+          favoriteCategory: stats.favoriteCategory || 'general',
+          rating: stats.rating || 1000,
+          tier: stats.tier || 'bronze'
         };
       }
     } catch (error) {
@@ -86,7 +93,9 @@ export class DatabaseStorage implements IStorage {
         losses: 0,
         averageScore: 0,
         bestStreak: 0,
-        favoriteCategory: 'general'
+        favoriteCategory: 'general',
+        rating: 1000,
+        tier: 'bronze'
       };
 
       const updated = { ...existing, ...stats };
@@ -100,7 +109,9 @@ export class DatabaseStorage implements IStorage {
           losses: updated.losses,
           averageScore: updated.averageScore,
           bestStreak: updated.bestStreak,
-          favoriteCategory: updated.favoriteCategory
+          favoriteCategory: updated.favoriteCategory,
+          rating: updated.rating,
+          tier: updated.tier
         })
         .onConflictDoUpdate({
           target: gameStats.playerId,
@@ -110,7 +121,9 @@ export class DatabaseStorage implements IStorage {
             losses: updated.losses,
             averageScore: updated.averageScore,
             bestStreak: updated.bestStreak,
-            favoriteCategory: updated.favoriteCategory
+            favoriteCategory: updated.favoriteCategory,
+            rating: updated.rating,
+            tier: updated.tier
           }
         });
 
@@ -125,7 +138,9 @@ export class DatabaseStorage implements IStorage {
         losses: 0,
         averageScore: 0,
         bestStreak: 0,
-        favoriteCategory: 'general'
+        favoriteCategory: 'general',
+        rating: 1000,
+        tier: 'bronze'
       };
       const updated = { ...existing, ...stats };
       this.fallbackStats.set(playerId, updated);
