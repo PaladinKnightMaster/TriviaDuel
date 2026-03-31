@@ -10,7 +10,7 @@ export const users = pgTable("users", {
 
 export const gameStats = pgTable("game_stats", {
   id: serial("id").primaryKey(),
-  playerId: text("player_id").notNull(),
+  playerId: text("player_id").notNull().unique(),
   totalGames: integer("total_games").default(0),
   wins: integer("wins").default(0),
   losses: integer("losses").default(0),
@@ -216,6 +216,9 @@ export interface GameRoom {
   category: string;
   difficulty: string;
   maxPlayers: number;
+  questionIndex: number;
+  maxQuestions: number;
+  currentQuestionAnswers: Record<string, boolean>;
 }
 
 export interface Answer {

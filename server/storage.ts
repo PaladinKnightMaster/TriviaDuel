@@ -168,6 +168,10 @@ export class DatabaseStorage implements IStorage {
 
   async updateLeaderboard(playerId: string, playerName: string, score: number, gamesWon: number, bestStreak: number): Promise<void> {
     try {
+      // Get existing entry so we can accumulate (not replace) scores
+      const existing = await db.select().from(leaderboards).where(eq(leaderboards.playerId, playerId)).limit(1);
+      const prev = existing[0];
+
       await db.insert(leaderboards)
         .values({
           playerId,
@@ -175,15 +179,15 @@ export class DatabaseStorage implements IStorage {
           totalScore: score,
           gamesWon,
           bestStreak,
-          rank: 1 // Will be recalculated
+          rank: 1
         })
         .onConflictDoUpdate({
           target: leaderboards.playerId,
           set: {
             playerName,
-            totalScore: score,
-            gamesWon,
-            bestStreak
+            totalScore: prev ? (prev.totalScore || 0) + score : score,
+            gamesWon: prev ? (prev.gamesWon || 0) + gamesWon : gamesWon,
+            bestStreak: prev ? Math.max(prev.bestStreak || 0, bestStreak) : bestStreak
           }
         });
 

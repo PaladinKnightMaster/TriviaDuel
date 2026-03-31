@@ -4,12 +4,12 @@ import { QuestionBank } from './questionBank';
 export class GameLogic {
   private questionBank: QuestionBank;
   private rooms: Map<string, GameRoom>;
-  private roomTimers: Map<string, NodeJS.Timeout>;
+  private roomQuestionHistory: Map<string, string[]>;
 
   constructor() {
     this.questionBank = new QuestionBank();
     this.rooms = new Map();
-    this.roomTimers = new Map();
+    this.roomQuestionHistory = new Map();
   }
 
   createRoom(roomId: string, mode: 'pvp' | 'pve', category: string, difficulty: string): GameRoom {
@@ -22,19 +22,20 @@ export class GameLogic {
       difficulty,
       maxPlayers: mode === 'pvp' ? 4 : 1,
       currentQuestion: undefined,
-      questionStartTime: undefined
+      questionStartTime: undefined,
+      questionIndex: 0,
+      maxQuestions: 10,
+      currentQuestionAnswers: {}
     };
 
     this.rooms.set(roomId, room);
+    this.roomQuestionHistory.set(roomId, []);
     return room;
   }
 
   addPlayerToRoom(roomId: string, player: Player): GameRoom | null {
     const room = this.rooms.get(roomId);
-    if (!room || room.players.length >= room.maxPlayers) {
-      return null;
-    }
-
+    if (!room || room.players.length >= room.maxPlayers) return null;
     room.players.push(player);
     return room;
   }
@@ -44,7 +45,7 @@ export class GameLogic {
     if (!room) return null;
 
     room.players = room.players.filter(p => p.id !== playerId);
-    
+
     if (room.players.length === 0) {
       this.deleteRoom(roomId);
       return null;
@@ -58,14 +59,11 @@ export class GameLogic {
     if (!room) return null;
 
     const player = room.players.find(p => p.id === playerId);
-    if (player) {
-      player.isReady = true;
-    }
+    if (player) player.isReady = true;
 
-    // Start game if all players are ready and minimum players met
     const minPlayers = room.mode === 'pvp' ? 2 : 1;
     const allReady = room.players.length >= minPlayers && room.players.every(p => p.isReady);
-    
+
     if (allReady && room.gameState === 'waiting') {
       this.startGame(roomId);
     }
@@ -78,56 +76,57 @@ export class GameLogic {
     if (!room) return null;
 
     room.gameState = 'playing';
+    room.questionIndex = 0;
     this.nextQuestion(roomId);
-    
     return room;
   }
 
+  // Returns the next question, or null if the match is over.
+  // Does NOT manage timers — that is the GameServer's responsibility.
   nextQuestion(roomId: string): Question | null {
     const room = this.rooms.get(roomId);
     if (!room) return null;
 
-    const question = this.questionBank.getRandomQuestion(room.category, room.difficulty);
+    if (room.questionIndex >= room.maxQuestions) return null;
+
+    const usedIds = this.roomQuestionHistory.get(roomId) || [];
+    const question = this.questionBank.getRandomQuestion(room.category, room.difficulty, usedIds);
     if (!question) return null;
+
+    usedIds.push(question.id);
+    this.roomQuestionHistory.set(roomId, usedIds);
 
     room.currentQuestion = question;
     room.questionStartTime = Date.now();
-
-    // Set timer for question timeout
-    if (this.roomTimers.has(roomId)) {
-      clearTimeout(this.roomTimers.get(roomId)!);
-    }
-
-    const timer = setTimeout(() => {
-      this.questionTimeout(roomId);
-    }, question.timeLimit * 1000);
-
-    this.roomTimers.set(roomId, timer);
+    room.currentQuestionAnswers = {};
+    room.questionIndex += 1;
 
     return question;
   }
 
   submitAnswer(roomId: string, answer: Answer): { room: GameRoom; isCorrect: boolean; points: number } | null {
     const room = this.rooms.get(roomId);
-    if (!room || !room.currentQuestion || room.gameState !== 'playing') {
-      return null;
-    }
+    if (!room || !room.currentQuestion || room.gameState !== 'playing') return null;
 
     const player = room.players.find(p => p.id === answer.playerId);
     if (!player) return null;
 
+    // Prevent double-answering
+    if (room.currentQuestionAnswers[answer.playerId] !== undefined) {
+      return { room, isCorrect: false, points: 0 };
+    }
+
     const isCorrect = answer.selectedAnswer === room.currentQuestion.correctAnswer;
     const timeBonus = this.calculateTimeBonus(room.questionStartTime!, answer.timeToAnswer, room.currentQuestion.timeLimit);
-    
+
     let points = 0;
     if (isCorrect) {
       const basePoints = this.getBasePoints(room.currentQuestion.difficulty);
       points = basePoints + timeBonus;
       player.score += points;
       player.streak += 1;
-      
-      // Streak bonus
-      if (player.streak >= 3) {
+
+      if (player.streak >= 3 && player.streak % 3 === 0) {
         const streakBonus = Math.floor(player.streak / 3) * 50;
         player.score += streakBonus;
         points += streakBonus;
@@ -136,22 +135,35 @@ export class GameLogic {
       player.streak = 0;
     }
 
+    room.currentQuestionAnswers[answer.playerId] = isCorrect;
     return { room, isCorrect, points };
   }
 
-  questionTimeout(roomId: string): void {
+  // Resets streaks for players who timed out without answering
+  applyQuestionTimeout(roomId: string): void {
     const room = this.rooms.get(roomId);
     if (!room) return;
-
-    // Reset streaks for players who didn't answer
     room.players.forEach(player => {
-      player.streak = 0;
+      if (room.currentQuestionAnswers[player.id] === undefined) {
+        player.streak = 0;
+      }
     });
+  }
 
-    // Move to next question after a brief delay
-    setTimeout(() => {
-      this.nextQuestion(roomId);
-    }, 2000);
+  allHumanPlayersAnswered(roomId: string): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) return false;
+
+    const humanPlayers = room.players.filter(p => !p.id.startsWith('ai_'));
+    if (humanPlayers.length === 0) return false;
+
+    return humanPlayers.every(p => room.currentQuestionAnswers[p.id] !== undefined);
+  }
+
+  isGameOver(roomId: string): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) return true;
+    return room.questionIndex >= room.maxQuestions;
   }
 
   endGame(roomId: string): GameRoom | null {
@@ -159,25 +171,13 @@ export class GameLogic {
     if (!room) return null;
 
     room.gameState = 'finished';
-    
-    // Clear any existing timers
-    if (this.roomTimers.has(roomId)) {
-      clearTimeout(this.roomTimers.get(roomId)!);
-      this.roomTimers.delete(roomId);
-    }
-
-    // Sort players by score
     room.players.sort((a, b) => b.score - a.score);
-
     return room;
   }
 
   deleteRoom(roomId: string): void {
-    if (this.roomTimers.has(roomId)) {
-      clearTimeout(this.roomTimers.get(roomId)!);
-      this.roomTimers.delete(roomId);
-    }
     this.rooms.delete(roomId);
+    this.roomQuestionHistory.delete(roomId);
   }
 
   getRoom(roomId: string): GameRoom | null {
