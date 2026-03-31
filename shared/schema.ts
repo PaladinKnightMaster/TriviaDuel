@@ -33,7 +33,7 @@ export const leaderboards = pgTable("leaderboards", {
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
-  password: true,
+  passwordHash: true,
 });
 
 // Tournament tables

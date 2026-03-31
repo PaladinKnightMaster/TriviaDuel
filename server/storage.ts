@@ -150,7 +150,7 @@ export class DatabaseStorage implements IStorage {
 
   async getLeaderboard(): Promise<LeaderboardEntry[]> {
     try {
-      const result = await db.select().from(leaderboards).orderBy(desc(leaderboards.totalScore)).limit(100);
+      const result = (await db.select().from(leaderboards).orderBy(desc(leaderboards.totalScore)).limit(100)) ?? [];
       return result.map((entry, index) => ({
         playerId: entry.playerId,
         playerName: entry.playerName,
