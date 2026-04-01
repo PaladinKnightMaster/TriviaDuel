@@ -15,15 +15,16 @@ export function TriviaGame() {
     selectedAnswer,
     isAnswered,
     players,
+    questionNumber,
+    totalQuestions,
     selectAnswer,
     setTimeRemaining,
-    setPhase
   } = useTrivia();
 
-  const { answerQuestion, currentRoom } = useSocket();
-  const [showResults, setShowResults] = useState(false);
-  const [gameEnded, setGameEnded] = useState(false);
+  const { answerQuestion } = useSocket();
+  const [answerFeedback, setAnswerFeedback] = useState<{ isCorrect: boolean; points: number; correctAnswer: number } | null>(null);
 
+  // Countdown timer
   useEffect(() => {
     if (currentQuestion && timeRemaining > 0 && !isAnswered) {
       const timer = setInterval(() => {
@@ -31,75 +32,71 @@ export function TriviaGame() {
       }, 1000);
       return () => clearInterval(timer);
     }
-    
+
     // Auto-submit when time runs out
     if (currentQuestion && timeRemaining === 0 && !isAnswered) {
-      selectAnswer(-1); // -1 indicates no answer/timeout
+      selectAnswer(-1);
       answerQuestion(currentQuestion.id, -1);
     }
   }, [currentQuestion, timeRemaining, isAnswered, setTimeRemaining, selectAnswer, answerQuestion]);
 
-  // Listen for game end events
+  // Listen for answer feedback
   useEffect(() => {
-    if (!socketClient) return;
-    
-    const handleGameEnd = (results: any) => {
-      console.log('Game ended:', results);
-      setGameEnded(true);
-      setShowResults(true);
-      
-      // Show results for 5 seconds then go back to menu
-      setTimeout(() => {
-        setPhase('menu');
-      }, 5000);
-    };
-
     const handleAnswerResult = (result: any) => {
-      console.log('Answer result:', result);
-      setShowResults(true);
-      setTimeout(() => setShowResults(false), 2000);
+      setAnswerFeedback({
+        isCorrect: result.isCorrect,
+        points: result.points,
+        correctAnswer: result.correctAnswer,
+      });
+      // Clear feedback when a new question arrives (handled by clearing on mount)
+      setTimeout(() => setAnswerFeedback(null), 2200);
     };
 
-    socketClient.on('gameEnded', handleGameEnd);
     socketClient.on('answerResult', handleAnswerResult);
-
     return () => {
-      socketClient.off('gameEnded', handleGameEnd);
       socketClient.off('answerResult', handleAnswerResult);
     };
-  }, [setPhase]);
+  }, []);
+
+  // Clear feedback when a new question arrives
+  useEffect(() => {
+    setAnswerFeedback(null);
+  }, [currentQuestion?.id]);
 
   const handleAnswerSelect = (answerIndex: number) => {
-    if (!isAnswered && currentQuestion) {
+    if (!isAnswered && currentQuestion && timeRemaining > 0) {
       selectAnswer(answerIndex);
       answerQuestion(currentQuestion.id, answerIndex);
     }
   };
 
-  const getAnswerButtonClass = (index: number) => {
+  const getAnswerButtonClass = (index: number): string => {
     if (!isAnswered) {
-      return "bg-gray-800 hover:bg-gray-700 border-gray-600 text-white";
+      return 'bg-gray-800 hover:bg-gray-700 border-gray-600 text-white hover:border-indigo-400 transition-all';
     }
-    
     if (index === currentQuestion?.correctAnswer) {
-      return "bg-green-600 border-green-500 text-white";
+      return 'bg-green-600 border-green-500 text-white scale-[1.01]';
     }
-    
     if (index === selectedAnswer && index !== currentQuestion?.correctAnswer) {
-      return "bg-red-600 border-red-500 text-white";
+      return 'bg-red-600 border-red-500 text-white';
     }
-    
-    return "bg-gray-600 border-gray-500 text-gray-300";
+    return 'bg-gray-700 border-gray-600 text-gray-400 opacity-60';
   };
 
   const timePercentage = currentQuestion ? (timeRemaining / currentQuestion.timeLimit) * 100 : 0;
 
+  const timerColor =
+    timePercentage > 50 ? 'text-green-400' :
+    timePercentage > 25 ? 'text-yellow-400' :
+    'text-red-400';
+
   if (!currentQuestion) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-900 to-indigo-900 flex items-center justify-center p-4">
         <Card className="bg-black/50 border-purple-500/50 backdrop-blur-sm">
           <CardContent className="p-8 text-center">
-            <p className="text-white text-xl">Waiting for next question...</p>
+            <div className="text-3xl mb-3 animate-spin inline-block">⏳</div>
+            <p className="text-white text-xl">Loading next question...</p>
           </CardContent>
         </Card>
       </div>
@@ -107,97 +104,128 @@ export function TriviaGame() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 p-4">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Timer and Progress */}
-        <Card className="bg-black/50 border-red-500/50 backdrop-blur-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-red-400" />
-                <span className="text-white font-bold text-lg">{timeRemaining}s</span>
-              </div>
-              <Badge className="bg-purple-100 text-purple-800">
-                {currentQuestion.category.replace('_', ' ').toUpperCase()}
-              </Badge>
-              <Badge className={`${
-                currentQuestion.difficulty === 'easy' ? 'bg-green-100 text-green-800' :
-                currentQuestion.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                'bg-red-100 text-red-800'
-              }`}>
-                {currentQuestion.difficulty.toUpperCase()}
-              </Badge>
-            </div>
-            <Progress 
-              value={timePercentage} 
-              className="h-3"
-              style={{
-                background: timePercentage > 50 ? '#10B981' : timePercentage > 25 ? '#F59E0B' : '#EF4444'
-              }}
-            />
-          </CardContent>
-        </Card>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-900 to-indigo-900 p-4">
+      <div className="max-w-2xl mx-auto space-y-4">
+
+        {/* Header: Question progress + Timer */}
+        <div className="flex items-center justify-between">
+          <div className="bg-black/40 rounded-xl px-4 py-2 border border-white/10">
+            <span className="text-white/60 text-sm">Question </span>
+            <span className="text-white font-bold">{questionNumber}</span>
+            <span className="text-white/40 text-sm"> / {totalQuestions}</span>
+          </div>
+
+          <div className={`flex items-center gap-2 bg-black/40 rounded-xl px-4 py-2 border border-white/10 ${timerColor}`}>
+            <Clock className="w-4 h-4" />
+            <span className="font-bold text-lg tabular-nums">{timeRemaining}s</span>
+          </div>
+
+          <div className="flex gap-2">
+            <Badge className="bg-indigo-800 text-indigo-200 border-indigo-700 text-xs">
+              {currentQuestion.category.replace('_', ' ').toUpperCase()}
+            </Badge>
+            <Badge className={`text-xs ${
+              currentQuestion.difficulty === 'easy' ? 'bg-green-800 text-green-200 border-green-700' :
+              currentQuestion.difficulty === 'medium' ? 'bg-yellow-800 text-yellow-200 border-yellow-700' :
+              'bg-red-800 text-red-200 border-red-700'
+            }`}>
+              {currentQuestion.difficulty.toUpperCase()}
+            </Badge>
+          </div>
+        </div>
+
+        {/* Timer bar */}
+        <div className="w-full bg-white/10 rounded-full h-2">
+          <div
+            className={`h-2 rounded-full transition-all duration-1000 ${
+              timePercentage > 50 ? 'bg-green-500' :
+              timePercentage > 25 ? 'bg-yellow-500' : 'bg-red-500'
+            }`}
+            style={{ width: `${timePercentage}%` }}
+          />
+        </div>
+
+        {/* Answer feedback toast */}
+        {answerFeedback && (
+          <div className={`rounded-xl p-3 text-center font-bold border animate-pulse ${
+            answerFeedback.isCorrect
+              ? 'bg-green-600/80 text-white border-green-400'
+              : 'bg-red-600/80 text-white border-red-400'
+          }`}>
+            {answerFeedback.isCorrect
+              ? `✓ Correct! +${answerFeedback.points} pts`
+              : '✗ Wrong answer'}
+          </div>
+        )}
 
         {/* Question */}
-        <Card className="bg-black/50 border-blue-500/50 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="text-white text-xl text-center">
+        <Card className="bg-black/50 border-blue-500/30 backdrop-blur-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-white text-lg md:text-xl text-center leading-relaxed">
               {currentQuestion.question}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {currentQuestion.options.map((option, index) => (
-                <Button
+                <button
                   key={index}
                   onClick={() => handleAnswerSelect(index)}
                   disabled={isAnswered || timeRemaining <= 0}
-                  className={`p-4 text-left h-auto whitespace-normal ${getAnswerButtonClass(index)}`}
-                  variant="outline"
+                  className={`p-4 text-left rounded-xl border-2 font-medium transition-all duration-150 ${getAnswerButtonClass(index)}`}
                 >
-                  <span className="font-bold mr-2">
+                  <span className="font-bold text-indigo-300 mr-2">
                     {String.fromCharCode(65 + index)}.
                   </span>
                   {option}
-                </Button>
+                </button>
               ))}
             </div>
           </CardContent>
         </Card>
 
-        {/* Players Score */}
-        <Card className="bg-black/50 border-green-500/50 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              Players
+        {/* Live Scoreboard */}
+        <Card className="bg-black/40 border-white/10 backdrop-blur-sm">
+          <CardHeader className="pb-2 pt-3">
+            <CardTitle className="text-white/80 text-sm flex items-center gap-2 font-medium">
+              <Users className="w-4 h-4" />
+              Live Scores
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {players.map((player, index) => (
-                <div
-                  key={player.id}
-                  className="flex items-center justify-between bg-gray-800/50 p-3 rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${
-                      index === 0 ? 'bg-gold-400' : index === 1 ? 'bg-gray-400' : 'bg-amber-600'
-                    }`} />
-                    <span className="text-white font-medium">{player.name}</span>
-                    {player.streak > 0 && (
-                      <div className="flex items-center gap-1">
-                        <Flame className="w-4 h-4 text-orange-400" />
-                        <span className="text-orange-400 text-sm font-bold">{player.streak}</span>
+          <CardContent className="pb-3">
+            <div className="space-y-2">
+              {[...players]
+                .sort((a, b) => b.score - a.score)
+                .map((player, index) => {
+                  const isAI = player.id.startsWith('ai_');
+                  const isMe = player.id === socketClient.id;
+                  return (
+                    <div
+                      key={player.id}
+                      className={`flex items-center justify-between p-2 rounded-lg ${
+                        isMe ? 'bg-indigo-900/50 border border-indigo-500/30' : 'bg-gray-800/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}</span>
+                        <span className="text-white text-sm font-medium">
+                          {isAI ? '🤖 AI' : player.name}
+                          {isMe && <span className="text-indigo-400 text-xs ml-1">(you)</span>}
+                        </span>
+                        {player.streak >= 2 && (
+                          <div className="flex items-center gap-0.5">
+                            <Flame className="w-3 h-3 text-orange-400" />
+                            <span className="text-orange-400 text-xs font-bold">{player.streak}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Trophy className="w-4 h-4 text-yellow-400" />
-                    <span className="text-white font-bold">{player.score}</span>
-                  </div>
-                </div>
-              ))}
+                      <div className="flex items-center gap-1">
+                        <Trophy className="w-3 h-3 text-yellow-400" />
+                        <span className="text-white font-bold text-sm">{player.score.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           </CardContent>
         </Card>

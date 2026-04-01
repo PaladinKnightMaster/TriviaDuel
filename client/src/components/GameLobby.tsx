@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
@@ -6,11 +6,30 @@ import { useTrivia } from '../lib/stores/useTrivia';
 import { useSocket } from '../lib/stores/useSocket';
 import { CategorySelect } from './CategorySelect';
 import { Leaderboard } from './Leaderboard';
-import { Trophy, Users, Zap, BookOpen } from 'lucide-react';
+import { Trophy, Users, Zap, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+
+const CATEGORIES = [
+  { value: 'general', label: 'General Knowledge' },
+  { value: 'science', label: 'Science' },
+  { value: 'history', label: 'History' },
+  { value: 'pop_culture', label: 'Pop Culture' },
+  { value: 'sports', label: 'Sports' },
+  { value: 'geography', label: 'Geography' },
+];
+
+const DIFFICULTIES = [
+  { value: 'easy', label: '🟢 Easy', color: 'text-green-400' },
+  { value: 'medium', label: '🟡 Medium', color: 'text-yellow-400' },
+  { value: 'hard', label: '🔴 Hard', color: 'text-red-400' },
+];
 
 export function GameLobby() {
   const { playerName, setPlayerName, setPhase } = useTrivia();
   const { setPlayerName: setSocketPlayerName, joinMatchmaking } = useSocket();
+
+  const [pveCategory, setPveCategory] = useState('general');
+  const [pveDifficulty, setPveDifficulty] = useState('medium');
+  const [showPveOptions, setShowPveOptions] = useState(false);
 
   const handleStartPvP = () => {
     if (playerName.trim()) {
@@ -19,32 +38,31 @@ export function GameLobby() {
   };
 
   const handleStartPvE = () => {
-    if (playerName.trim()) {
-      // Ensure socket is connected before proceeding
-      const { isConnected } = useSocket.getState();
-      if (!isConnected) {
-        console.log('Socket not connected, connecting first...');
-        const { connect } = useSocket.getState();
-        connect();
-        // Wait for connection and then proceed
-        setTimeout(() => {
-          setSocketPlayerName(playerName);
-          joinMatchmaking('pve', 'general', 'medium');
-          setPhase('playing');
-        }, 1000);
-      } else {
-        setSocketPlayerName(playerName);
-        joinMatchmaking('pve', 'general', 'medium');
-        setPhase('playing');
-      }
+    if (!playerName.trim()) return;
+
+    const { isConnected, connect } = useSocket.getState();
+    const launch = () => {
+      setSocketPlayerName(playerName.trim());
+      joinMatchmaking('pve', pveCategory, pveDifficulty);
+      // Don't set phase here — wait for 'gameStarted' from server (handled in App.tsx)
+      // But we do need to show the playing screen immediately so set it after a small delay
+      setTimeout(() => setPhase('playing'), 800);
+    };
+
+    if (!isConnected) {
+      connect();
+      setTimeout(launch, 1000);
+    } else {
+      launch();
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl space-y-6">
+
         {/* Header */}
-        <div className="text-center space-y-4">
+        <div className="text-center space-y-3">
           <h1 className="text-5xl font-bold text-white mb-2">
             🧠 Trivia Masters
           </h1>
@@ -65,12 +83,14 @@ export function GameLobby() {
               placeholder="Your trivia master name..."
               className="text-lg text-center bg-gray-800 border-gray-600 text-white placeholder-gray-400"
               maxLength={20}
+              onKeyDown={(e) => e.key === 'Enter' && handleStartPvE()}
             />
           </CardContent>
         </Card>
 
         {/* Game Modes */}
         <div className="grid md:grid-cols-2 gap-6">
+
           {/* PvP Mode */}
           <Card className="bg-black/50 border-red-500/50 backdrop-blur-sm hover:bg-black/60 transition-all">
             <CardHeader>
@@ -80,12 +100,12 @@ export function GameLobby() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-gray-300">
-                Challenge other players in real-time trivia battles
+              <p className="text-gray-300 text-sm">
+                Challenge other players in real-time trivia battles with skill-based matchmaking
               </p>
-              <ul className="text-sm text-gray-400 space-y-1">
-                <li>• Real-time matchmaking</li>
-                <li>• Competitive scoring</li>
+              <ul className="text-xs text-gray-400 space-y-1">
+                <li>• Real-time skill-based matchmaking</li>
+                <li>• ELO rating system</li>
                 <li>• Live leaderboards</li>
                 <li>• Streak bonuses</li>
               </ul>
@@ -109,15 +129,65 @@ export function GameLobby() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-gray-300">
-                Practice against adaptive AI opponents
+              <p className="text-gray-300 text-sm">
+                Practice against an adaptive AI opponent that adjusts to your skill
               </p>
-              <ul className="text-sm text-gray-400 space-y-1">
-                <li>• Adaptive difficulty</li>
-                <li>• Practice mode</li>
-                <li>• Skill improvement</li>
-                <li>• All categories</li>
-              </ul>
+
+              {/* PvE Options toggle */}
+              <button
+                onClick={() => setShowPveOptions(!showPveOptions)}
+                className="flex items-center gap-1.5 text-sm text-indigo-300 hover:text-indigo-200 transition-colors"
+              >
+                {showPveOptions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                {showPveOptions ? 'Hide options' : 'Choose category & difficulty'}
+              </button>
+
+              {showPveOptions && (
+                <div className="space-y-3 bg-black/30 rounded-lg p-3 border border-white/10">
+                  <div>
+                    <label className="text-white/70 text-xs font-medium mb-1.5 block">Category</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {CATEGORIES.map(cat => (
+                        <button
+                          key={cat.value}
+                          onClick={() => setPveCategory(cat.value)}
+                          className={`text-xs py-1.5 px-2 rounded-lg border transition-all ${
+                            pveCategory === cat.value
+                              ? 'bg-indigo-600 border-indigo-500 text-white'
+                              : 'bg-gray-800/60 border-gray-600 text-gray-300 hover:border-indigo-400'
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-white/70 text-xs font-medium mb-1.5 block">Difficulty</label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {DIFFICULTIES.map(diff => (
+                        <button
+                          key={diff.value}
+                          onClick={() => setPveDifficulty(diff.value)}
+                          className={`text-xs py-1.5 px-2 rounded-lg border transition-all ${
+                            pveDifficulty === diff.value
+                              ? 'bg-indigo-600 border-indigo-500 text-white'
+                              : 'bg-gray-800/60 border-gray-600 text-gray-300 hover:border-indigo-400'
+                          }`}
+                        >
+                          {diff.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-400 text-center pt-1">
+                    <span className="text-indigo-300">{CATEGORIES.find(c => c.value === pveCategory)?.label}</span>
+                    {' · '}
+                    <span className="text-indigo-300 capitalize">{pveDifficulty}</span>
+                  </div>
+                </div>
+              )}
+
               <Button
                 onClick={handleStartPvE}
                 disabled={!playerName.trim()}
@@ -133,7 +203,7 @@ export function GameLobby() {
         {/* Categories Preview */}
         <CategorySelect />
 
-        {/* Leaderboard Preview */}
+        {/* Leaderboard */}
         <Leaderboard />
       </div>
     </div>

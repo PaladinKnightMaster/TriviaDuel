@@ -2,6 +2,12 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { GamePhase, Player, Question, LeaderboardEntry, GameStats } from '../../types/game';
 
+interface GameResults {
+  finalScores: Player[];
+  winner: Player | null;
+  totalQuestions: number;
+}
+
 interface TriviaState {
   phase: GamePhase;
   playerName: string;
@@ -13,6 +19,9 @@ interface TriviaState {
   players: Player[];
   leaderboard: LeaderboardEntry[];
   gameStats: GameStats;
+  gameResults: GameResults | null;
+  questionNumber: number;
+  totalQuestions: number;
   
   // Actions
   setPhase: (phase: GamePhase) => void;
@@ -22,6 +31,7 @@ interface TriviaState {
   setTimeRemaining: (time: number) => void;
   updatePlayers: (players: Player[]) => void;
   updateLeaderboard: (leaderboard: LeaderboardEntry[]) => void;
+  setGameResults: (results: GameResults) => void;
   resetGame: () => void;
 }
 
@@ -36,6 +46,9 @@ export const useTrivia = create<TriviaState>()(
     isAnswered: false,
     players: [],
     leaderboard: [],
+    gameResults: null,
+    questionNumber: 0,
+    totalQuestions: 10,
     gameStats: {
       totalGames: 0,
       wins: 0,
@@ -58,7 +71,9 @@ export const useTrivia = create<TriviaState>()(
         questionStartTime: question ? Date.now() : null,
         timeRemaining: question ? question.timeLimit : 0,
         selectedAnswer: null,
-        isAnswered: false
+        isAnswered: false,
+        questionNumber: (question as any)?.questionNumber ?? get().questionNumber,
+        totalQuestions: (question as any)?.totalQuestions ?? get().totalQuestions,
       });
     },
 
@@ -75,6 +90,8 @@ export const useTrivia = create<TriviaState>()(
 
     updateLeaderboard: (leaderboard) => set({ leaderboard }),
 
+    setGameResults: (results) => set({ gameResults: results }),
+
     resetGame: () => set({
       phase: 'menu',
       currentQuestion: null,
@@ -82,7 +99,9 @@ export const useTrivia = create<TriviaState>()(
       timeRemaining: 0,
       selectedAnswer: null,
       isAnswered: false,
-      players: []
+      players: [],
+      gameResults: null,
+      questionNumber: 0,
     })
   }))
 );

@@ -7,37 +7,45 @@ import "@fontsource/inter";
 
 function App() {
   const { connect, currentRoom } = useSocket();
-  const { setPhase, setCurrentQuestion, updatePlayers } = useTrivia();
+  const { setPhase, setCurrentQuestion, updatePlayers, setGameResults } = useTrivia();
 
   useEffect(() => {
-    // Connect to socket server
     connect();
 
-    // Listen for game events
-    socketClient.on('gameStarted', () => {
+    const onGameStarted = () => {
       setPhase('playing');
-    });
+    };
 
-    socketClient.on('newQuestion', (question: any) => {
+    const onNewQuestion = (question: any) => {
       setCurrentQuestion(question);
-    });
+    };
 
-    socketClient.on('gameEnded', (results: any) => {
-      setPhase('results');
+    const onGameEnded = (results: any) => {
       console.log('Game ended:', results);
-    });
+      setGameResults({
+        finalScores: results.finalScores || [],
+        winner: results.winner || null,
+        totalQuestions: results.totalQuestions || 10,
+      });
+      setPhase('results');
+    };
 
-    socketClient.on('playersUpdated', (players: any) => {
+    const onPlayersUpdated = (players: any) => {
       updatePlayers(players);
-    });
+    };
+
+    socketClient.on('gameStarted', onGameStarted);
+    socketClient.on('newQuestion', onNewQuestion);
+    socketClient.on('gameEnded', onGameEnded);
+    socketClient.on('playersUpdated', onPlayersUpdated);
 
     return () => {
-      socketClient.off('gameStarted', () => {});
-      socketClient.off('newQuestion', () => {});
-      socketClient.off('gameEnded', () => {});
-      socketClient.off('playersUpdated', () => {});
+      socketClient.off('gameStarted', onGameStarted);
+      socketClient.off('newQuestion', onNewQuestion);
+      socketClient.off('gameEnded', onGameEnded);
+      socketClient.off('playersUpdated', onPlayersUpdated);
     };
-  }, [connect, setPhase, setCurrentQuestion, updatePlayers]);
+  }, [connect, setPhase, setCurrentQuestion, updatePlayers, setGameResults]);
 
   // Automatically transition to game when room starts
   useEffect(() => {
