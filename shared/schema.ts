@@ -23,7 +23,7 @@ export const gameStats = pgTable("game_stats", {
 
 export const leaderboards = pgTable("leaderboards", {
   id: serial("id").primaryKey(),
-  playerId: text("player_id").notNull(),
+  playerId: text("player_id").notNull().unique(),
   playerName: text("player_name").notNull(),
   totalScore: integer("total_score").default(0),
   gamesWon: integer("games_won").default(0),

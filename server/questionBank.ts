@@ -337,10 +337,11 @@ export class QuestionBank {
     }
 
     // Exclude already-used questions in this match session
+    // IDs are stable (no random suffix), so the comparison is exact
     if (excludeIds && excludeIds.length > 0) {
       const excludeSet = new Set(excludeIds);
       const unused = filteredQuestions.filter(q => {
-        const id = `${q.category}_${q.difficulty}_${q.question.substring(0, 20)}`;
+        const id = `${q.category}_${q.difficulty}_${q.question.substring(0, 30)}`;
         return !excludeSet.has(id);
       });
       // Only use unused questions if available; otherwise allow repeats
@@ -355,10 +356,11 @@ export class QuestionBank {
 
     const randomIndex = Math.floor(Math.random() * filteredQuestions.length);
     const questionData = filteredQuestions[randomIndex];
-    const stableId = `${questionData.category}_${questionData.difficulty}_${questionData.question.substring(0, 20)}`;
+    // Stable, deterministic ID — no random suffix so history dedup works correctly
+    const id = `${questionData.category}_${questionData.difficulty}_${questionData.question.substring(0, 30)}`;
 
     return {
-      id: stableId + '_' + Math.random().toString(36).substr(2, 5),
+      id,
       ...questionData
     };
   }

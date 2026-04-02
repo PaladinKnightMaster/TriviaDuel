@@ -222,11 +222,19 @@ export class GameServer {
         const roomId = await this.matchmaking.joinQueue(player, mode, category, difficulty);
 
         if (roomId) {
-          this.playerRooms.set(socket.id, roomId);
-          socket.join(roomId);
-
           const room = this.gameLogic.getRoom(roomId);
           if (room) {
+            // Join ALL matched players to the Socket.IO room.
+            // For PvP this fixes the critical bug where only the 2nd player's socket
+            // was joined; the 1st player was never notified and stayed stuck in matchmaking.
+            for (const roomPlayer of room.players) {
+              const playerSocket = this.io.sockets.sockets.get(roomPlayer.id);
+              if (playerSocket) {
+                this.playerRooms.set(roomPlayer.id, roomId);
+                playerSocket.join(roomId);
+              }
+            }
+
             if (mode === 'pve') {
               const aiPlayer: Player = {
                 id: 'ai_' + roomId,

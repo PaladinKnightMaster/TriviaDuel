@@ -49,7 +49,7 @@ export default function GameResults({
   const maxScore = sorted[0]?.score || 1;
   const myResult = sorted.find(p => p.id === currentPlayerId);
   const myRank = sorted.findIndex(p => p.id === currentPlayerId);
-  const isWinner = winner?.id === currentPlayerId || (winner?.id.startsWith('ai_') === false && myRank === 0);
+  const isWinner = winner?.id === currentPlayerId;
   const perfectGame = myResult && totalQuestions > 0
     ? myResult.score >= totalQuestions * 200
     : false;
@@ -141,8 +141,8 @@ export default function GameResults({
           </div>
         </div>
 
-        {/* Personal Stats (if multiple players) */}
-        {myResult && sorted.length > 1 && (
+        {/* Personal Stats */}
+        {myResult && (
           <div className="bg-white/5 rounded-xl p-3 mb-5 border border-white/10">
             <div className="grid grid-cols-3 gap-3 text-center">
               <div>

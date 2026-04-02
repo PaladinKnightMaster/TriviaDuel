@@ -20,7 +20,7 @@ export class GameLogic {
       mode,
       category,
       difficulty,
-      maxPlayers: mode === 'pvp' ? 4 : 1,
+      maxPlayers: mode === 'pvp' ? 4 : 2, // pve = human + AI opponent
       currentQuestion: undefined,
       questionStartTime: undefined,
       questionIndex: 0,
