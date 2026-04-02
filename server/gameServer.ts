@@ -169,14 +169,18 @@ export class GameServer {
       ? room.currentQuestion.correctAnswer
       : Math.floor(Math.random() * room.currentQuestion.options.length);
 
-    // AI responds 2–7 seconds after question appears
-    const delay = Math.random() * 5000 + 2000;
+    // AI responds 1–4 seconds after question appears.
+    // Keeping this under the 2.5s result-display window ensures the AI scores
+    // most of the time even when the human answers instantly.
+    const delay = Math.random() * 3000 + 1000;
 
     setTimeout(() => {
       const currentRoom = this.gameLogic.getRoom(roomId);
+      // Bail if the question has already changed (game moved on)
       if (!currentRoom?.currentQuestion || currentRoom.currentQuestion.id !== questionId) return;
       if (currentRoom.gameState !== 'playing') return;
-      if (this.advancingRooms.has(roomId)) return; // Already advancing
+      // Note: do NOT guard on advancingRooms here — AI should still score
+      // during the 2.5 s result window. triggerAdvance has its own guard.
 
       const aiAnswer: Answer = {
         playerId: aiPlayer.id,
@@ -190,8 +194,8 @@ export class GameServer {
         this.io.to(roomId).emit('playersUpdated', result.room.players);
         console.log(`AI answered room ${roomId}: ${isCorrect ? '✓' : '✗'} (accuracy: ${(aiAccuracy * 100).toFixed(0)}%)`);
 
-        // Advance immediately if all humans also answered
-        if (this.gameLogic.allHumanPlayersAnswered(roomId)) {
+        // Only trigger advance if human already answered but advance hasn't started yet
+        if (!this.advancingRooms.has(roomId) && this.gameLogic.allHumanPlayersAnswered(roomId)) {
           this.triggerAdvance(roomId);
         }
       }
