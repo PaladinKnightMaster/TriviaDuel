@@ -25,7 +25,9 @@ export class GameLogic {
       questionStartTime: undefined,
       questionIndex: 0,
       maxQuestions: 10,
-      currentQuestionAnswers: {}
+      currentQuestionAnswers: {},
+      correctAnswersPerPlayer: {},
+      fastestAnswerMsPerPlayer: {}
     };
 
     this.rooms.set(roomId, room);
@@ -130,6 +132,18 @@ export class GameLogic {
         const streakBonus = Math.floor(player.streak / 3) * 50;
         player.score += streakBonus;
         points += streakBonus;
+      }
+
+      // Track cumulative correct answers for achievements
+      room.correctAnswersPerPlayer[answer.playerId] = (room.correctAnswersPerPlayer[answer.playerId] || 0) + 1;
+
+      // Track fastest correct answer time (ms) for speed demon achievement
+      const answerMs = answer.timeToAnswer - room.questionStartTime!;
+      if (answerMs > 0) {
+        const prev = room.fastestAnswerMsPerPlayer[answer.playerId];
+        if (prev === undefined || answerMs < prev) {
+          room.fastestAnswerMsPerPlayer[answer.playerId] = answerMs;
+        }
       }
     } else {
       player.streak = 0;

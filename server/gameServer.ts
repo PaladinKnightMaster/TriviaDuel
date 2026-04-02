@@ -5,6 +5,8 @@ import { MatchmakingService } from './matchmaking';
 import { TournamentService } from './tournamentService';
 import { CustomCategoryService } from './customCategoryService';
 import { storage } from './storage';
+import { authService } from './authService';
+import { achievementService } from './achievementService';
 import { Player, Answer } from '../shared/schema';
 
 export class GameServer {
@@ -15,8 +17,10 @@ export class GameServer {
   private customCategories: CustomCategoryService;
   private playerRooms: Map<string, string>;
   private playerNames: Map<string, string>;
-  private questionTimers: Map<string, NodeJS.Timeout>; // roomId -> question timeout timer
-  private advancingRooms: Set<string>; // rooms currently in the 2.5s result-display window
+  private questionTimers: Map<string, NodeJS.Timeout>;
+  private advancingRooms: Set<string>;
+  // Maps socket.id → persistent auth ID ('user_123') or socket.id for guests
+  private socketToAuthId: Map<string, string>;
 
   constructor(httpServer: Server) {
     this.io = new SocketServer(httpServer, {
@@ -36,6 +40,7 @@ export class GameServer {
     this.playerNames = new Map();
     this.questionTimers = new Map();
     this.advancingRooms = new Set();
+    this.socketToAuthId = new Map();
 
     this.setupSocketHandlers();
   }
@@ -128,6 +133,8 @@ export class GameServer {
     const finalRoom = this.gameLogic.endGame(roomId);
     if (!finalRoom) return;
 
+    const winner = finalRoom.players[0];
+
     // Update ELO ratings for PvP
     if (finalRoom.mode === 'pvp' && finalRoom.players.filter(p => !p.id.startsWith('ai_')).length >= 2) {
       await this.updatePlayerRatings(finalRoom.players.filter(p => !p.id.startsWith('ai_')));
@@ -136,13 +143,46 @@ export class GameServer {
     // Update persistent leaderboards
     await this.updateLeaderboards(finalRoom.players);
 
+    // Check achievements for each human player
+    const humanPlayers = finalRoom.players.filter(p => !p.id.startsWith('ai_'));
+    for (const player of humanPlayers) {
+      const authId = this.socketToAuthId.get(player.id) || player.id;
+      // Only check achievements for authenticated (persistent) players
+      if (!authId.startsWith('user_')) continue;
+      const dbUserId = parseInt(authId.replace('user_', ''), 10);
+      if (isNaN(dbUserId)) continue;
+
+      const isWinner = player.id === winner?.id;
+      const correctAnswers = finalRoom.correctAnswersPerPlayer[player.id] || 0;
+      const fastestAnswerMs = finalRoom.fastestAnswerMsPerPlayer[player.id];
+
+      try {
+        const newAchievements = await achievementService.checkAndAwardAchievements(
+          String(dbUserId),
+          finalRoom,
+          player,
+          isWinner,
+          correctAnswers,
+          fastestAnswerMs
+        );
+        if (newAchievements.length > 0) {
+          const playerSocket = this.io.sockets.sockets.get(player.id);
+          if (playerSocket) {
+            playerSocket.emit('achievementUnlocked', { achievements: newAchievements });
+          }
+        }
+      } catch (err) {
+        console.error(`Achievement check failed for ${authId}:`, err);
+      }
+    }
+
     this.io.to(roomId).emit('gameEnded', {
       finalScores: finalRoom.players,
-      winner: finalRoom.players[0],
+      winner,
       totalQuestions: finalRoom.maxQuestions
     });
 
-    console.log(`Game finished in room ${roomId}. Winner: ${finalRoom.players[0]?.name} (${finalRoom.players[0]?.score} pts)`);
+    console.log(`Game finished in room ${roomId}. Winner: ${winner?.name} (${winner?.score} pts)`);
   }
 
   // ── AI BEHAVIOR (event-driven per question) ───────────────────────────────
@@ -205,10 +245,24 @@ export class GameServer {
   // ── SOCKET HANDLERS ───────────────────────────────────────────────────────
   private setupSocketHandlers(): void {
     this.io.on('connection', (socket) => {
-      console.log(`Player connected: ${socket.id}`);
+      // Resolve persistent auth ID from JWT (falls back to socket.id for guests)
+      const token = (socket.handshake.auth as any)?.token as string | undefined;
+      let authId: string = socket.id;
+      if (token) {
+        const payload = authService.verifyToken(token);
+        if (payload) {
+          authId = `user_${payload.userId}`;
+          // Pre-fill the player name from the account
+          this.playerNames.set(socket.id, payload.username);
+          console.log(`Authenticated socket: ${socket.id} → ${authId} (${payload.username})`);
+        }
+      }
+      this.socketToAuthId.set(socket.id, authId);
+      console.log(`Player connected: ${socket.id}${authId !== socket.id ? ` [auth: ${authId}]` : ''}`);
 
       socket.on('setPlayerName', (name: string) => {
-        this.playerNames.set(socket.id, name);
+        // Only update name if not already set from JWT
+        if (!token) this.playerNames.set(socket.id, name);
       });
 
       // MATCHMAKING
@@ -410,6 +464,7 @@ export class GameServer {
       // DISCONNECT
       socket.on('disconnect', () => {
         console.log(`Player disconnected: ${socket.id}`);
+        this.socketToAuthId.delete(socket.id);
         this.matchmaking.leaveQueue(socket.id);
 
         const roomId = this.playerRooms.get(socket.id);

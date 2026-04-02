@@ -219,6 +219,8 @@ export interface GameRoom {
   questionIndex: number;
   maxQuestions: number;
   currentQuestionAnswers: Record<string, boolean>;
+  correctAnswersPerPlayer: Record<string, number>;
+  fastestAnswerMsPerPlayer: Record<string, number>;
 }
 
 export interface Answer {
