@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTrivia } from '../lib/stores/useTrivia';
 import { useSocket } from '../lib/stores/useSocket';
 import { socketClient } from '../lib/socket';
@@ -6,10 +6,12 @@ import { GameLobby } from './GameLobby';
 import { Matchmaking } from './Matchmaking';
 import { TriviaGame } from './TriviaGame';
 import GameResults from './GameResults';
+import { PlayerProfile } from './PlayerProfile';
 
 export function GameUI() {
-  const { phase, gameResults, players, resetGame } = useTrivia();
+  const { phase, gameResults, resetGame, setPhase } = useTrivia();
   const { disconnect } = useSocket();
+  const [showProfile, setShowProfile] = useState(false);
 
   const handlePlayAgain = () => {
     socketClient.emit('leaveMatchmaking');
@@ -21,9 +23,14 @@ export function GameUI() {
     resetGame();
   };
 
+  // Profile overlay takes priority
+  if (showProfile) {
+    return <PlayerProfile onBack={() => setShowProfile(false)} />;
+  }
+
   switch (phase) {
     case 'menu':
-      return <GameLobby />;
+      return <GameLobby onOpenProfile={() => setShowProfile(true)} />;
     case 'matchmaking':
       return <Matchmaking />;
     case 'playing':
@@ -56,6 +63,6 @@ export function GameUI() {
         </div>
       );
     default:
-      return <GameLobby />;
+      return <GameLobby onOpenProfile={() => setShowProfile(true)} />;
   }
 }

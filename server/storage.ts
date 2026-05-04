@@ -1,5 +1,6 @@
-import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import pg from 'pg';
+const { Pool } = pg;
 import { users, gameStats, leaderboards, type User, type InsertUser, type GameStats, type InsertGameStats, type Leaderboard, type InsertLeaderboard, LeaderboardEntry } from '../shared/schema';
 import { eq, desc } from 'drizzle-orm';
 
@@ -15,9 +16,12 @@ export interface SimpleGameStats {
   tier: string;
 }
 
-// Initialize database connection
-const sql = neon(process.env.DATABASE_URL!);
-const db = drizzle(sql);
+// Initialize database connection using standard pg Pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('sslmode=require') ? { rejectUnauthorized: false } : false,
+});
+const db = drizzle(pool);
 
 // Export database connection for other services
 export { db };

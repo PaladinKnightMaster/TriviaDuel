@@ -1,5 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 
+const TOKEN_KEY = 'trivia_auth_token';
+
 class SocketClient {
   private socket: Socket | null = null;
   private listeners: Map<string, ((...args: any[]) => void)[]> = new Map();
@@ -7,9 +9,11 @@ class SocketClient {
   connect() {
     if (this.socket?.connected) return this.socket;
 
+    const token = localStorage.getItem(TOKEN_KEY);
     this.socket = io('/', {
       transports: ['websocket', 'polling'],
       autoConnect: true,
+      auth: token ? { token } : {},
     });
 
     this.socket.on('connect', () => {
@@ -30,6 +34,37 @@ class SocketClient {
     return this.socket;
   }
 
+  reconnectWithToken(token: string | null) {
+    // Disconnect current socket
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
+
+    // Reconnect with new auth token
+    const auth = token ? { token } : {};
+    this.socket = io('/', {
+      transports: ['websocket', 'polling'],
+      autoConnect: true,
+      auth,
+    });
+
+    this.socket.on('connect', () => {
+      console.log('Reconnected to server:', this.socket?.id, token ? '[authenticated]' : '[guest]');
+    });
+
+    this.socket.on('disconnect', () => {
+      console.log('Disconnected from server');
+    });
+
+    // Re-attach all existing listeners to the new socket
+    this.listeners.forEach((callbacks, event) => {
+      callbacks.forEach(callback => {
+        this.socket?.on(event, callback);
+      });
+    });
+  }
+
   disconnect() {
     if (this.socket) {
       this.socket.disconnect();
@@ -44,6 +79,8 @@ class SocketClient {
     this.listeners.get(event)!.push(callback);
 
     if (this.socket?.connected) {
+      this.socket.on(event, callback);
+    } else if (this.socket) {
       this.socket.on(event, callback);
     }
   }

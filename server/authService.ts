@@ -44,15 +44,16 @@ export class AuthService {
         return { success: false, error: 'Password must be at least 6 characters' };
       }
 
-      const existingUser = await db.select().from(users).where(eq(users.username, username.trim()));
+      const existingUser = (await db.select().from(users).where(eq(users.username, username.trim()))) ?? [];
       if (existingUser.length > 0) {
         return { success: false, error: 'Username already taken' };
       }
 
       const passwordHash = await this.hashPassword(password);
-      const [newUser] = await db.insert(users)
+      const inserted = (await db.insert(users)
         .values({ username: username.trim(), passwordHash })
-        .returning();
+        .returning()) ?? [];
+      const [newUser] = inserted;
 
       const token = this.signToken({ userId: newUser.id, username: newUser.username });
       return { success: true, token, userId: newUser.id, username: newUser.username };
@@ -64,7 +65,8 @@ export class AuthService {
 
   async loginUser(username: string, password: string): Promise<{ success: boolean; token?: string; userId?: number; username?: string; error?: string }> {
     try {
-      const [user] = await db.select().from(users).where(eq(users.username, username.trim()));
+      const userRows = (await db.select().from(users).where(eq(users.username, username.trim()))) ?? [];
+      const [user] = userRows;
       if (!user) {
         return { success: false, error: 'Invalid username or password' };
       }
@@ -84,7 +86,8 @@ export class AuthService {
 
   async getUserById(userId: number): Promise<{ id: number; username: string } | null> {
     try {
-      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      const rows = (await db.select().from(users).where(eq(users.id, userId))) ?? [];
+      const [user] = rows;
       return user ? { id: user.id, username: user.username } : null;
     } catch {
       return null;

@@ -6,7 +6,7 @@ interface MatchmakingQueue {
   mode: 'pvp' | 'pve';
   category: string;
   difficulty: string;
-  players: (Player & { joinTime: number })[];
+  players: (Player & { joinTime: number; rating: number })[];
 }
 
 const RATING_RANGES = {

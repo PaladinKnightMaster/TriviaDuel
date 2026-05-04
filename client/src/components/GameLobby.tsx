@@ -4,9 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { useTrivia } from '../lib/stores/useTrivia';
 import { useSocket } from '../lib/stores/useSocket';
+import { useAuth } from '../lib/stores/useAuth';
 import { CategorySelect } from './CategorySelect';
 import { Leaderboard } from './Leaderboard';
-import { Trophy, Users, Zap, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { AuthModal } from './AuthModal';
+import { Trophy, Users, Zap, BookOpen, ChevronDown, ChevronUp, User, LogOut } from 'lucide-react';
 
 const CATEGORIES = [
   { value: 'general', label: 'General Knowledge' },
@@ -23,29 +25,35 @@ const DIFFICULTIES = [
   { value: 'hard', label: '🔴 Hard', color: 'text-red-400' },
 ];
 
-export function GameLobby() {
+interface GameLobbyProps {
+  onOpenProfile?: () => void;
+}
+
+export function GameLobby({ onOpenProfile }: GameLobbyProps) {
   const { playerName, setPlayerName, setPhase } = useTrivia();
   const { setPlayerName: setSocketPlayerName, joinMatchmaking } = useSocket();
+  const { user, logout } = useAuth();
 
   const [pveCategory, setPveCategory] = useState('general');
   const [pveDifficulty, setPveDifficulty] = useState('medium');
   const [showPveOptions, setShowPveOptions] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const handleStartPvP = () => {
-    if (playerName.trim()) {
+    const name = user?.username || playerName.trim();
+    if (name) {
       setPhase('matchmaking');
     }
   };
 
   const handleStartPvE = () => {
-    if (!playerName.trim()) return;
+    const name = user?.username || playerName.trim();
+    if (!name) return;
 
     const { isConnected, connect } = useSocket.getState();
     const launch = () => {
-      setSocketPlayerName(playerName.trim());
+      setSocketPlayerName(name);
       joinMatchmaking('pve', pveCategory, pveDifficulty);
-      // Don't set phase here — wait for 'gameStarted' from server (handled in App.tsx)
-      // But we do need to show the playing screen immediately so set it after a small delay
       setTimeout(() => setPhase('playing'), 800);
     };
 
@@ -57,12 +65,45 @@ export function GameLobby() {
     }
   };
 
+  const displayName = user?.username || playerName;
+  const canPlay = !!displayName.trim();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl space-y-6">
 
-        {/* Header */}
-        <div className="text-center space-y-3">
+        {/* Header + Auth bar */}
+        <div className="text-center space-y-3 relative">
+          {/* Auth controls — top right */}
+          <div className="absolute right-0 top-0 flex items-center gap-2">
+            {user ? (
+              <>
+                <button
+                  onClick={onOpenProfile}
+                  className="flex items-center gap-1.5 text-sm text-purple-300 hover:text-purple-200 bg-purple-900/40 border border-purple-500/40 rounded-xl px-3 py-1.5 transition-all hover:bg-purple-900/60"
+                >
+                  <User className="w-4 h-4" />
+                  <span className="max-w-[80px] truncate">{user.username}</span>
+                </button>
+                <button
+                  onClick={logout}
+                  className="text-gray-500 hover:text-gray-300 transition-colors p-1.5"
+                  title="Sign out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="flex items-center gap-1.5 text-sm text-purple-300 hover:text-purple-200 bg-purple-900/40 border border-purple-500/40 rounded-xl px-3 py-2 transition-all hover:bg-purple-900/60"
+              >
+                <User className="w-4 h-4" />
+                Sign In
+              </button>
+            )}
+          </div>
+
           <h1 className="text-5xl font-bold text-white mb-2">
             🧠 Trivia Masters
           </h1>
@@ -71,22 +112,53 @@ export function GameLobby() {
           </p>
         </div>
 
-        {/* Player Name Input */}
-        <Card className="bg-black/50 border-purple-500/50 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="text-white text-center">Enter Your Name</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Input
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              placeholder="Your trivia master name..."
-              className="text-lg text-center bg-gray-800 border-gray-600 text-white placeholder-gray-400"
-              maxLength={20}
-              onKeyDown={(e) => e.key === 'Enter' && handleStartPvE()}
-            />
-          </CardContent>
-        </Card>
+        {/* Player Name / Account status */}
+        {user ? (
+          <div className="bg-black/40 border border-purple-500/30 rounded-2xl p-4 backdrop-blur-sm flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-lg font-bold text-white">
+                {user.username.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div className="text-white font-semibold">{user.username}</div>
+                <div className="text-green-400 text-xs">✓ Account connected — stats saved</div>
+              </div>
+            </div>
+            <button
+              onClick={onOpenProfile}
+              className="text-sm text-purple-300 hover:text-purple-200 flex items-center gap-1 transition-colors"
+            >
+              <Trophy className="w-4 h-4" />
+              Profile
+            </button>
+          </div>
+        ) : (
+          <Card className="bg-black/50 border-purple-500/50 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="text-white text-center">Enter Your Name</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Input
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                placeholder="Your trivia master name..."
+                className="text-lg text-center bg-gray-800 border-gray-600 text-white placeholder-gray-400"
+                maxLength={20}
+                onKeyDown={(e) => e.key === 'Enter' && handleStartPvE()}
+              />
+              <p className="text-center text-gray-500 text-xs">
+                Or{' '}
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="text-purple-400 hover:text-purple-300 underline transition-colors"
+                >
+                  sign in / create account
+                </button>
+                {' '}to save your progress
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Game Modes */}
         <div className="grid md:grid-cols-2 gap-6">
@@ -111,7 +183,7 @@ export function GameLobby() {
               </ul>
               <Button
                 onClick={handleStartPvP}
-                disabled={!playerName.trim()}
+                disabled={!canPlay}
                 className="w-full bg-red-600 hover:bg-red-700 text-white"
               >
                 <Zap className="w-4 h-4 mr-2" />
@@ -133,7 +205,6 @@ export function GameLobby() {
                 Practice against an adaptive AI opponent that adjusts to your skill
               </p>
 
-              {/* PvE Options toggle */}
               <button
                 onClick={() => setShowPveOptions(!showPveOptions)}
                 className="flex items-center gap-1.5 text-sm text-indigo-300 hover:text-indigo-200 transition-colors"
@@ -190,7 +261,7 @@ export function GameLobby() {
 
               <Button
                 onClick={handleStartPvE}
-                disabled={!playerName.trim()}
+                disabled={!canPlay}
                 className="w-full bg-green-600 hover:bg-green-700 text-white"
               >
                 <BookOpen className="w-4 h-4 mr-2" />
@@ -206,6 +277,9 @@ export function GameLobby() {
         {/* Leaderboard */}
         <Leaderboard />
       </div>
+
+      {/* Auth Modal */}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
     </div>
   );
 }

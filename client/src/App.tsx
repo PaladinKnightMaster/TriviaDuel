@@ -1,17 +1,24 @@
 import React, { useEffect } from 'react';
 import { useSocket } from './lib/stores/useSocket';
 import { useTrivia } from './lib/stores/useTrivia';
+import { useAuth } from './lib/stores/useAuth';
 import { GameUI } from './components/GameUI';
+import { AchievementToast } from './components/AchievementToast';
 import { socketClient } from './lib/socket';
 import "@fontsource/inter";
 
 function App() {
   const { connect, currentRoom } = useSocket();
   const { setPhase, setCurrentQuestion, updatePlayers, setGameResults } = useTrivia();
+  const { initFromStorage } = useAuth();
+
+  // Boot: restore auth from localStorage before connecting socket
+  useEffect(() => {
+    initFromStorage();
+    connect();
+  }, []);
 
   useEffect(() => {
-    connect();
-
     const onGameStarted = () => {
       setPhase('playing');
     };
@@ -45,7 +52,7 @@ function App() {
       socketClient.off('gameEnded', onGameEnded);
       socketClient.off('playersUpdated', onPlayersUpdated);
     };
-  }, [connect, setPhase, setCurrentQuestion, updatePlayers, setGameResults]);
+  }, [setPhase, setCurrentQuestion, updatePlayers, setGameResults]);
 
   // Automatically transition to game when room starts
   useEffect(() => {
@@ -57,6 +64,8 @@ function App() {
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
       <GameUI />
+      {/* Global achievement toast — lives outside game phases */}
+      <AchievementToast />
     </div>
   );
 }
