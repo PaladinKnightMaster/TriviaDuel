@@ -1,10 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Button } from './ui/button';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { useTrivia } from '../lib/stores/useTrivia';
-import { useSocket } from '../lib/stores/useSocket';
 import { socketClient } from '../lib/socket';
 import { Clock, Trophy, Flame, Users } from 'lucide-react';
 
@@ -22,25 +19,69 @@ export function TriviaGame() {
   } = useTrivia();
 
   const { answerQuestion } = useSocket();
-  const [answerFeedback, setAnswerFeedback] = useState<{ isCorrect: boolean; points: number; correctAnswer: number } | null>(null);
 
-  // Countdown timer
+  const [answerFeedback, setAnswerFeedback] = useState<{
+    isCorrect: boolean;
+    points: number;
+    correctAnswer: number;
+  } | null>(null);
+
+  // Refs so interval callbacks always see the latest values without re-creating the interval
+  const questionStartRef = useRef<number>(Date.now());
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isAnsweredRef = useRef(isAnswered);
+  const currentQuestionRef = useRef(currentQuestion);
+
+  // Keep refs in sync with state
+  useEffect(() => { isAnsweredRef.current = isAnswered; }, [isAnswered]);
+  useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
+
+  // ── SMOOTH TIMER ────────────────────────────────────────────────────────────
+  // Runs a single persistent interval per question, computing remaining time
+  // from real wall-clock elapsed time (Date.now) — never drifts.
   useEffect(() => {
-    if (currentQuestion && timeRemaining > 0 && !isAnswered) {
-      const timer = setInterval(() => {
-        setTimeRemaining(timeRemaining - 1);
-      }, 1000);
-      return () => clearInterval(timer);
+    if (!currentQuestion) return;
+
+    // Mark when this question was received
+    questionStartRef.current = Date.now();
+    setTimeRemaining(currentQuestion.timeLimit);
+
+    // Clear any previous interval
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
 
-    // Auto-submit when time runs out
-    if (currentQuestion && timeRemaining === 0 && !isAnswered) {
-      selectAnswer(-1);
-      answerQuestion(currentQuestion.id, -1);
-    }
-  }, [currentQuestion, timeRemaining, isAnswered, setTimeRemaining, selectAnswer, answerQuestion]);
+    timerRef.current = setInterval(() => {
+      const elapsed = (Date.now() - questionStartRef.current) / 1000;
+      const remaining = Math.max(0, currentQuestion.timeLimit - elapsed);
+      setTimeRemaining(remaining);
 
-  // Listen for answer feedback
+      // Auto-submit on timeout (only once, only if not already answered)
+      if (remaining === 0) {
+        clearInterval(timerRef.current!);
+        timerRef.current = null;
+        if (!isAnsweredRef.current && currentQuestionRef.current) {
+          selectAnswer(-1);
+          socketClient.emit('submitAnswer', {
+            playerId: socketClient.id || '',
+            questionId: currentQuestionRef.current.id,
+            selectedAnswer: -1,
+            timeToAnswer: Date.now(),
+          });
+        }
+      }
+    }, 100);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [currentQuestion?.id]); // Only re-run when the question itself changes
+
+  // ── ANSWER FEEDBACK ─────────────────────────────────────────────────────────
   useEffect(() => {
     const handleAnswerResult = (result: any) => {
       setAnswerFeedback({
@@ -48,14 +89,10 @@ export function TriviaGame() {
         points: result.points,
         correctAnswer: result.correctAnswer,
       });
-      // Clear feedback when a new question arrives (handled by clearing on mount)
-      setTimeout(() => setAnswerFeedback(null), 2200);
     };
 
     socketClient.on('answerResult', handleAnswerResult);
-    return () => {
-      socketClient.off('answerResult', handleAnswerResult);
-    };
+    return () => socketClient.off('answerResult', handleAnswerResult);
   }, []);
 
   // Clear feedback when a new question arrives
@@ -63,13 +100,21 @@ export function TriviaGame() {
     setAnswerFeedback(null);
   }, [currentQuestion?.id]);
 
+  // ── ANSWER SELECTION ────────────────────────────────────────────────────────
   const handleAnswerSelect = (answerIndex: number) => {
     if (!isAnswered && currentQuestion && timeRemaining > 0) {
       selectAnswer(answerIndex);
-      answerQuestion(currentQuestion.id, answerIndex);
+      // Emit directly using current socket.id — bypasses any stale store playerId
+      socketClient.emit('submitAnswer', {
+        playerId: socketClient.id || '',
+        questionId: currentQuestion.id,
+        selectedAnswer: answerIndex,
+        timeToAnswer: Date.now(),
+      });
     }
   };
 
+  // ── STYLING ─────────────────────────────────────────────────────────────────
   const getAnswerButtonClass = (index: number): string => {
     if (!isAnswered) {
       return 'bg-gray-800 hover:bg-gray-700 border-gray-600 text-white hover:border-indigo-400 transition-all';
@@ -83,13 +128,21 @@ export function TriviaGame() {
     return 'bg-gray-700 border-gray-600 text-gray-400 opacity-60';
   };
 
-  const timePercentage = currentQuestion ? (timeRemaining / currentQuestion.timeLimit) * 100 : 0;
+  const timeLimit = currentQuestion?.timeLimit ?? 30;
+  // Display as whole seconds, clamped 0–timeLimit
+  const displaySeconds = Math.ceil(Math.max(0, Math.min(timeRemaining, timeLimit)));
+  const timePercentage = (timeRemaining / timeLimit) * 100;
 
   const timerColor =
     timePercentage > 50 ? 'text-green-400' :
     timePercentage > 25 ? 'text-yellow-400' :
     'text-red-400';
 
+  const barColor =
+    timePercentage > 50 ? 'bg-green-500' :
+    timePercentage > 25 ? 'bg-yellow-500' : 'bg-red-500';
+
+  // ── LOADING STATE ───────────────────────────────────────────────────────────
   if (!currentQuestion) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-900 to-indigo-900 flex items-center justify-center p-4">
@@ -117,7 +170,7 @@ export function TriviaGame() {
 
           <div className={`flex items-center gap-2 bg-black/40 rounded-xl px-4 py-2 border border-white/10 ${timerColor}`}>
             <Clock className="w-4 h-4" />
-            <span className="font-bold text-lg tabular-nums">{timeRemaining}s</span>
+            <span className="font-bold text-lg tabular-nums w-10 text-center">{displaySeconds}s</span>
           </div>
 
           <div className="flex gap-2">
@@ -134,20 +187,17 @@ export function TriviaGame() {
           </div>
         </div>
 
-        {/* Timer bar */}
-        <div className="w-full bg-white/10 rounded-full h-2">
+        {/* Timer bar — updates every 100ms, no CSS transition needed */}
+        <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
           <div
-            className={`h-2 rounded-full transition-all duration-1000 ${
-              timePercentage > 50 ? 'bg-green-500' :
-              timePercentage > 25 ? 'bg-yellow-500' : 'bg-red-500'
-            }`}
-            style={{ width: `${timePercentage}%` }}
+            className={`h-2 rounded-full ${barColor}`}
+            style={{ width: `${Math.max(0, timePercentage)}%`, transition: 'width 0.1s linear' }}
           />
         </div>
 
-        {/* Answer feedback toast */}
+        {/* Answer feedback */}
         {answerFeedback && (
-          <div className={`rounded-xl p-3 text-center font-bold border animate-pulse ${
+          <div className={`rounded-xl p-3 text-center font-bold border ${
             answerFeedback.isCorrect
               ? 'bg-green-600/80 text-white border-green-400'
               : 'bg-red-600/80 text-white border-red-400'
@@ -172,7 +222,7 @@ export function TriviaGame() {
                   key={index}
                   onClick={() => handleAnswerSelect(index)}
                   disabled={isAnswered || timeRemaining <= 0}
-                  className={`p-4 text-left rounded-xl border-2 font-medium transition-all duration-150 ${getAnswerButtonClass(index)}`}
+                  className={`p-4 text-left rounded-xl border-2 font-medium ${getAnswerButtonClass(index)}`}
                 >
                   <span className="font-bold text-indigo-300 mr-2">
                     {String.fromCharCode(65 + index)}.
@@ -221,7 +271,9 @@ export function TriviaGame() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Trophy className="w-3 h-3 text-yellow-400" />
-                        <span className="text-white font-bold text-sm">{player.score.toLocaleString()}</span>
+                        <span className="text-white font-bold text-sm tabular-nums">
+                          {player.score.toLocaleString()}
+                        </span>
                       </div>
                     </div>
                   );

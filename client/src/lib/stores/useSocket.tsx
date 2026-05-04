@@ -65,10 +65,11 @@ export const useSocket = create<SocketState>((set, get) => ({
   },
 
   answerQuestion: (questionId, selectedAnswer) => {
-    const { playerId } = get();
-    if (playerId) {
+    // Always use the live socket.id — never the potentially-stale store value.
+    const currentId = socketClient.id;
+    if (currentId) {
       socketClient.emit('submitAnswer', {
-        playerId,
+        playerId: currentId,
         questionId,
         selectedAnswer,
         timeToAnswer: Date.now()

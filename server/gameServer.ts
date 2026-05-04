@@ -366,7 +366,10 @@ export class GameServer {
         const roomId = this.playerRooms.get(socket.id);
         if (!roomId) return;
 
-        const result = this.gameLogic.submitAnswer(roomId, answerData);
+        // Always use socket.id as the authoritative player ID — never trust the
+        // client-provided playerId which can be stale after socket reconnection.
+        const canonicalAnswer: Answer = { ...answerData, playerId: socket.id };
+        const result = this.gameLogic.submitAnswer(roomId, canonicalAnswer);
         if (!result) return;
 
         this.io.to(roomId).emit('playersUpdated', result.room.players);
@@ -377,7 +380,7 @@ export class GameServer {
           correctAnswer: result.room.currentQuestion?.correctAnswer
         });
 
-        // If all human players answered, advance without waiting for timer
+        // If all human players answered, advance immediately (cancel remaining timer)
         if (this.gameLogic.allHumanPlayersAnswered(roomId)) {
           this.triggerAdvance(roomId);
         }
