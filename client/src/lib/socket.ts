@@ -76,11 +76,13 @@ class SocketClient {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
     }
-    this.listeners.get(event)!.push(callback);
+    // Guard: don't register the same callback twice (prevents duplicates on re-connect)
+    const existing = this.listeners.get(event)!;
+    if (!existing.includes(callback)) {
+      existing.push(callback);
+    }
 
-    if (this.socket?.connected) {
-      this.socket.on(event, callback);
-    } else if (this.socket) {
+    if (this.socket) {
       this.socket.on(event, callback);
     }
   }

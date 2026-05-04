@@ -5,6 +5,7 @@ import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useSocket } from '../lib/stores/useSocket';
 import { useTrivia } from '../lib/stores/useTrivia';
+import { useAuth } from '../lib/stores/useAuth';
 import { Loader2, Users, ArrowLeft, Timer } from 'lucide-react';
 
 export function Matchmaking() {
@@ -29,9 +30,11 @@ export function Matchmaking() {
   const handleStartMatchmaking = () => {
     setIsSearching(true);
     setSearchTime(0);
-    // Set player name before joining matchmaking
+    // Prefer the authenticated username; fall back to the guest name in the trivia store
     const { playerName } = useTrivia.getState();
-    setPlayerName(playerName);
+    const { user } = useAuth.getState();
+    const name = user?.username || playerName || 'Player';
+    setPlayerName(name);
     joinMatchmaking('pvp', selectedCategory, selectedDifficulty);
   };
 

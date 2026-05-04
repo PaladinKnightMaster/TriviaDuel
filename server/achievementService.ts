@@ -130,6 +130,10 @@ export class AchievementService {
       const existingMap = new Map(existing.map(a => [a.achievementId, a]));
       const gamesPlayed = (existing.find(a => a.achievementId === 'knowledge_seeker')?.progress ?? 0) + 1;
 
+      // Use the best streak reached during the game, not the final streak
+      // (player.streak resets to 0 on a wrong answer, so final streak ≠ best streak)
+      const bestStreak = room.maxStreakPerPlayer[playerResult.id] ?? playerResult.streak;
+
       const checks: Array<{ id: string; progress: number; unlock: boolean }> = [
         // First win
         {
@@ -149,21 +153,21 @@ export class AchievementService {
           progress: fastestAnswerMs !== undefined && fastestAnswerMs < 3000 ? 1 : 0,
           unlock: fastestAnswerMs !== undefined && fastestAnswerMs < 3000
         },
-        // Streaks
+        // Streaks — use best streak, not final streak
         {
           id: 'streak_3',
-          progress: Math.min(playerResult.streak, 3),
-          unlock: playerResult.streak >= 3
+          progress: Math.min(bestStreak, 3),
+          unlock: bestStreak >= 3
         },
         {
           id: 'streak_5',
-          progress: Math.min(playerResult.streak, 5),
-          unlock: playerResult.streak >= 5
+          progress: Math.min(bestStreak, 5),
+          unlock: bestStreak >= 5
         },
         {
           id: 'streak_10',
-          progress: Math.min(playerResult.streak, 10),
-          unlock: playerResult.streak >= 10
+          progress: Math.min(bestStreak, 10),
+          unlock: bestStreak >= 10
         },
         // Knowledge seeker (10 games played)
         {

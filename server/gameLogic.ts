@@ -27,7 +27,8 @@ export class GameLogic {
       maxQuestions: 10,
       currentQuestionAnswers: {},
       correctAnswersPerPlayer: {},
-      fastestAnswerMsPerPlayer: {}
+      fastestAnswerMsPerPlayer: {},
+      maxStreakPerPlayer: {}
     };
 
     this.rooms.set(roomId, room);
@@ -127,6 +128,12 @@ export class GameLogic {
       points = basePoints + timeBonus;
       player.score += points;
       player.streak += 1;
+
+      // Track the highest streak reached during this game
+      room.maxStreakPerPlayer[answer.playerId] = Math.max(
+        room.maxStreakPerPlayer[answer.playerId] || 0,
+        player.streak
+      );
 
       if (player.streak >= 3 && player.streak % 3 === 0) {
         const streakBonus = Math.floor(player.streak / 3) * 50;

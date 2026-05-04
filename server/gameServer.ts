@@ -140,8 +140,8 @@ export class GameServer {
       await this.updatePlayerRatings(finalRoom.players.filter(p => !p.id.startsWith('ai_')));
     }
 
-    // Update persistent leaderboards
-    await this.updateLeaderboards(finalRoom.players);
+    // Update persistent leaderboards (pass room for maxStreakPerPlayer)
+    await this.updateLeaderboards(finalRoom.players, finalRoom);
 
     // Check achievements for each human player
     const humanPlayers = finalRoom.players.filter(p => !p.id.startsWith('ai_'));
@@ -489,6 +489,18 @@ export class GameServer {
   }
 
   // ── ELO & LEADERBOARD ─────────────────────────────────────────────────────
+
+  // Resolve the DB player ID for storage.
+  // Authenticated users: 'user_2' → '2' (matches /api/player/2/stats).
+  // Guests: return null (no persistent stats to save).
+  private getDbPlayerId(socketId: string): string | null {
+    const authId = this.socketToAuthId.get(socketId) || socketId;
+    if (authId.startsWith('user_')) {
+      return authId.replace('user_', '');
+    }
+    return null; // Guest — don't persist
+  }
+
   private async updatePlayerRatings(players: Player[]): Promise<void> {
     try {
       const sorted = [...players].sort((a, b) => b.score - a.score);
@@ -496,10 +508,14 @@ export class GameServer {
         for (let j = i + 1; j < sorted.length; j++) {
           const winner = sorted[i];
           const loser = sorted[j];
-          const winnerStats = await storage.getPlayerStats(winner.id);
-          const loserStats = await storage.getPlayerStats(loser.id);
-          await this.matchmaking.updatePlayerRating(winner.id, true, loserStats?.rating || 1000);
-          await this.matchmaking.updatePlayerRating(loser.id, false, winnerStats?.rating || 1000);
+          const winnerDbId = this.getDbPlayerId(winner.id);
+          const loserDbId = this.getDbPlayerId(loser.id);
+          // Only update ratings for authenticated players
+          if (!winnerDbId || !loserDbId) continue;
+          const winnerStats = await storage.getPlayerStats(winnerDbId);
+          const loserStats = await storage.getPlayerStats(loserDbId);
+          await this.matchmaking.updatePlayerRating(winnerDbId, true, loserStats?.rating || 1000);
+          await this.matchmaking.updatePlayerRating(loserDbId, false, winnerStats?.rating || 1000);
         }
       }
     } catch (error) {
@@ -507,13 +523,17 @@ export class GameServer {
     }
   }
 
-  private async updateLeaderboards(players: Player[]): Promise<void> {
+  private async updateLeaderboards(players: Player[], room: { maxStreakPerPlayer: Record<string, number> }): Promise<void> {
     try {
       const sorted = [...players].sort((a, b) => b.score - a.score);
       for (const player of sorted) {
         if (player.id.startsWith('ai_')) continue;
+        const dbId = this.getDbPlayerId(player.id);
+        if (!dbId) continue; // Skip guests
         const name = this.playerNames.get(player.id) || `Player${player.id.substr(0, 4)}`;
-        await storage.updateLeaderboard(player.id, name, player.score, player === sorted[0] ? 1 : 0, player.streak);
+        // Use best streak reached during the game, not the final streak
+        const bestStreak = room.maxStreakPerPlayer[player.id] ?? player.streak;
+        await storage.updateLeaderboard(dbId, name, player.score, player === sorted[0] ? 1 : 0, bestStreak);
       }
     } catch (error) {
       console.error('Error updating leaderboards:', error);

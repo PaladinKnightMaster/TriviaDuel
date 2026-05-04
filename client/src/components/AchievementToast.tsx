@@ -13,6 +13,7 @@ interface AchievementDef {
 interface ToastItem {
   id: string;
   achievement: AchievementDef;
+  entering: boolean;
   exiting: boolean;
 }
 
@@ -45,7 +46,15 @@ export function AchievementToast() {
       achievements.forEach((achievement, i) => {
         setTimeout(() => {
           const toastId = `${achievement.id}_${Date.now()}`;
-          setToasts(prev => [...prev, { id: toastId, achievement, exiting: false }]);
+          // Start with entering:true so the slide-in animation fires
+          setToasts(prev => [...prev, { id: toastId, achievement, entering: true, exiting: false }]);
+
+          // Flip entering→false after one frame to trigger the CSS transition
+          setTimeout(() => {
+            setToasts(prev =>
+              prev.map(t => t.id === toastId ? { ...t, entering: false } : t)
+            );
+          }, 50);
 
           // Auto dismiss after 5s
           setTimeout(() => {
@@ -78,7 +87,7 @@ export function AchievementToast() {
             transition-all duration-400
             ${RARITY_STYLES[toast.achievement.rarity]}
             ${RARITY_GLOW[toast.achievement.rarity]}
-            ${toast.exiting
+            ${toast.entering || toast.exiting
               ? 'opacity-0 translate-x-full'
               : 'opacity-100 translate-x-0'
             }

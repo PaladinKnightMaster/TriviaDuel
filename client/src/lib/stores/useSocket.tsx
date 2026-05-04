@@ -23,25 +23,27 @@ export const useSocket = create<SocketState>((set, get) => ({
   currentRoom: null,
 
   connect: () => {
-    const socket = socketClient.connect();
-    
-    socket.on('connect', () => {
-      set({ isConnected: true, playerId: socket.id });
+    socketClient.connect();
+
+    // Register via socketClient.on() so these handlers are stored in the
+    // listeners map and automatically re-attached after every reconnect.
+    socketClient.on('connect', () => {
+      set({ isConnected: true, playerId: socketClient.id || null });
     });
 
-    socket.on('disconnect', () => {
+    socketClient.on('disconnect', () => {
       set({ isConnected: false, playerId: null, currentRoom: null });
     });
 
-    socket.on('roomJoined', (room: GameRoom) => {
+    socketClient.on('roomJoined', (room: GameRoom) => {
       set({ currentRoom: room });
     });
 
-    socket.on('roomUpdated', (room: GameRoom) => {
+    socketClient.on('roomUpdated', (room: GameRoom) => {
       set({ currentRoom: room });
     });
 
-    socket.on('roomLeft', () => {
+    socketClient.on('roomLeft', () => {
       set({ currentRoom: null });
     });
   },
