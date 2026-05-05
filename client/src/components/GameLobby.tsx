@@ -8,7 +8,7 @@ import { useAuth } from '../lib/stores/useAuth';
 import { CategorySelect } from './CategorySelect';
 import { Leaderboard } from './Leaderboard';
 import { AuthModal } from './AuthModal';
-import { Trophy, Users, Zap, BookOpen, ChevronDown, ChevronUp, User, LogOut } from 'lucide-react';
+import { Trophy, Users, Zap, BookOpen, ChevronDown, ChevronUp, User, LogOut, Award } from 'lucide-react';
 
 const CATEGORIES = [
   { value: 'general', label: 'General Knowledge' },
@@ -270,6 +270,20 @@ export function GameLobby({ onOpenProfile }: GameLobbyProps) {
             </CardContent>
           </Card>
         </div>
+
+        {/* Tournament Mode */}
+        <button
+          onClick={() => setPhase('tournament')}
+          disabled={!canPlay}
+          className="w-full py-4 rounded-2xl bg-gradient-to-r from-yellow-600/80 to-amber-600/80 hover:from-yellow-500/90 hover:to-amber-500/90 disabled:opacity-40 disabled:cursor-not-allowed border border-yellow-400/40 text-white font-semibold transition-all flex items-center justify-center gap-3 shadow-lg shadow-yellow-900/30"
+        >
+          <Award className="w-5 h-5 text-yellow-300" />
+          <div className="text-left">
+            <div className="font-bold">Tournament Mode</div>
+            <div className="text-xs text-yellow-200/70 font-normal">Compete in bracket-style elimination</div>
+          </div>
+          <Trophy className="w-5 h-5 text-yellow-300 ml-auto" />
+        </button>
 
         {/* Categories Preview */}
         <CategorySelect />

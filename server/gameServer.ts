@@ -21,6 +21,8 @@ export class GameServer {
   private advancingRooms: Set<string>;
   // Maps socket.id → persistent auth ID ('user_123') or socket.id for guests
   private socketToAuthId: Map<string, string>;
+  // Reverse map: authId ('user_123') → current socket.id  (authenticated players only)
+  private authToSocketId: Map<string, string>;
 
   constructor(httpServer: Server) {
     this.io = new SocketServer(httpServer, {
@@ -41,6 +43,7 @@ export class GameServer {
     this.questionTimers = new Map();
     this.advancingRooms = new Set();
     this.socketToAuthId = new Map();
+    this.authToSocketId = new Map();
 
     this.setupSocketHandlers();
   }
@@ -176,10 +179,44 @@ export class GameServer {
       }
     }
 
+    // Tournament match result handling
+    if (finalRoom.tournamentMatchId) {
+      try {
+        const humanPlayers = finalRoom.players.filter(p => !p.id.startsWith('ai_'));
+        const sorted = [...humanPlayers].sort((a, b) => b.score - a.score);
+        if (sorted.length >= 2) {
+          const matchWinner = sorted[0];
+          const matchLoser = sorted[1];
+          const winnerDbId = this.getDbPlayerId(matchWinner.id) || matchWinner.id;
+          await this.tournament.updateMatchResult(
+            finalRoom.tournamentMatchId,
+            winnerDbId,
+            matchWinner.score,
+            matchLoser.score
+          );
+          const match = await this.tournament.getMatch(finalRoom.tournamentMatchId);
+          if (match) {
+            const updatedTournament = await this.tournament.getTournament(match.tournamentId);
+            if (updatedTournament) {
+              this.io.to(`tournament_${match.tournamentId}`).emit('tournamentUpdated', updatedTournament);
+              if (updatedTournament.status === 'completed') {
+                this.io.to(`tournament_${match.tournamentId}`).emit('tournamentComplete', updatedTournament);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Tournament match completion error:', err);
+      }
+    }
+
     this.io.to(roomId).emit('gameEnded', {
       finalScores: finalRoom.players,
       winner,
-      totalQuestions: finalRoom.maxQuestions
+      totalQuestions: finalRoom.maxQuestions,
+      correctAnswersPerPlayer: finalRoom.correctAnswersPerPlayer,
+      maxStreakPerPlayer: finalRoom.maxStreakPerPlayer,
+      tournamentMatchId: finalRoom.tournamentMatchId,
     });
 
     console.log(`Game finished in room ${roomId}. Winner: ${winner?.name} (${winner?.score} pts)`);
@@ -258,6 +295,7 @@ export class GameServer {
         }
       }
       this.socketToAuthId.set(socket.id, authId);
+      if (authId !== socket.id) this.authToSocketId.set(authId, socket.id);
       console.log(`Player connected: ${socket.id}${authId !== socket.id ? ` [auth: ${authId}]` : ''}`);
 
       socket.on('setPlayerName', (name: string) => {
@@ -390,6 +428,7 @@ export class GameServer {
       socket.on('createTournament', async ({ name, category, difficulty, maxPlayers, prizePool }) => {
         const tournament = await this.tournament.createTournament(name, category, difficulty, maxPlayers, prizePool);
         if (tournament) {
+          socket.join(`tournament_${tournament.id}`);
           socket.emit('tournamentCreated', tournament);
           this.io.emit('tournamentListUpdated');
         } else {
@@ -398,12 +437,22 @@ export class GameServer {
       });
 
       socket.on('joinTournament', async ({ tournamentId, playerName }) => {
-        const success = await this.tournament.joinTournament(tournamentId, socket.id, playerName);
+        const dbPlayerId = this.getDbPlayerId(socket.id);
+        const participantId = dbPlayerId || socket.id;
+        const name = playerName || this.playerNames.get(socket.id) || `Player${socket.id.substr(0, 4)}`;
+        const success = await this.tournament.joinTournament(tournamentId, participantId, name);
         if (success) {
           const updated = await this.tournament.getTournament(tournamentId);
-          socket.emit('tournamentJoined', updated);
           socket.join(`tournament_${tournamentId}`);
+          socket.emit('tournamentJoined', updated);
           this.io.to(`tournament_${tournamentId}`).emit('tournamentUpdated', updated);
+          // Auto-start when tournament reaches maxPlayers
+          if (updated && updated.currentPlayers >= updated.maxPlayers) {
+            await this.tournament.startTournament(tournamentId);
+            const started = await this.tournament.getTournament(tournamentId);
+            this.io.to(`tournament_${tournamentId}`).emit('tournamentStarted', started);
+            this.io.to(`tournament_${tournamentId}`).emit('tournamentUpdated', started);
+          }
         } else {
           socket.emit('error', 'Failed to join tournament');
         }
@@ -420,6 +469,48 @@ export class GameServer {
       socket.on('getTournamentMatches', async ({ tournamentId, round }) => {
         const matches = await this.tournament.getTournamentMatches(tournamentId, round);
         socket.emit('tournamentMatches', { tournamentId, matches });
+      });
+
+      socket.on('joinTournamentMatch', async ({ matchId }) => {
+        const match = await this.tournament.getMatch(matchId);
+        if (!match) { socket.emit('error', 'Match not found'); return; }
+        if (match.status === 'completed') { socket.emit('error', 'Match already completed'); return; }
+
+        const tournament = await this.tournament.getTournament(match.tournamentId);
+        if (!tournament) { socket.emit('error', 'Tournament not found'); return; }
+
+        const roomId = match.roomId || `tmatch_${matchId}`;
+        let room = this.gameLogic.getRoom(roomId);
+        if (!room) {
+          room = this.gameLogic.createRoom(roomId, 'pvp', tournament.category, tournament.difficulty);
+          if (!room) { socket.emit('error', 'Failed to create match room'); return; }
+          room.tournamentMatchId = matchId;
+          await this.tournament.updateMatchRoom(matchId, roomId);
+        }
+
+        const alreadyIn = room.players.some(p => p.id === socket.id);
+        if (!alreadyIn) {
+          const playerName = this.playerNames.get(socket.id) || `Player${socket.id.substr(0, 4)}`;
+          const player: Player = { id: socket.id, name: playerName, score: 0, streak: 0, isReady: false };
+          this.gameLogic.addPlayerToRoom(roomId, player);
+          this.playerRooms.set(socket.id, roomId);
+          socket.join(roomId);
+        }
+
+        room = this.gameLogic.getRoom(roomId)!;
+        socket.emit('roomJoined', room);
+        this.io.to(roomId).emit('playersUpdated', room.players);
+
+        const humanPlayers = room.players.filter(p => !p.id.startsWith('ai_'));
+        if (humanPlayers.length >= 2 && room.gameState !== 'playing') {
+          for (const p of humanPlayers) this.gameLogic.playerReady(roomId, p.id);
+          const startedRoom = this.gameLogic.getRoom(roomId);
+          if (startedRoom?.gameState === 'playing' && startedRoom.currentQuestion) {
+            this.io.to(roomId).emit('gameStarted');
+            this.emitNewQuestion(roomId);
+            console.log(`Tournament match ${matchId} started in room ${roomId}`);
+          }
+        }
       });
 
       // CUSTOM CATEGORIES
@@ -467,6 +558,8 @@ export class GameServer {
       // DISCONNECT
       socket.on('disconnect', () => {
         console.log(`Player disconnected: ${socket.id}`);
+        const _authId = this.socketToAuthId.get(socket.id);
+        if (_authId && _authId !== socket.id) this.authToSocketId.delete(_authId);
         this.socketToAuthId.delete(socket.id);
         this.matchmaking.leaveQueue(socket.id);
 
@@ -493,6 +586,12 @@ export class GameServer {
   // Resolve the DB player ID for storage.
   // Authenticated users: 'user_2' → '2' (matches /api/player/2/stats).
   // Guests: return null (no persistent stats to save).
+  private getSocketByAuthId(authId: string) {
+    const socketId = this.authToSocketId.get(authId);
+    if (!socketId) return null;
+    return this.io.sockets.sockets.get(socketId) || null;
+  }
+
   private getDbPlayerId(socketId: string): string | null {
     const authId = this.socketToAuthId.get(socketId) || socketId;
     if (authId.startsWith('user_')) {

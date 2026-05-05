@@ -180,7 +180,7 @@ export class TournamentService {
     }
   }
 
-  private async startTournament(tournamentId: number): Promise<void> {
+  async startTournament(tournamentId: number): Promise<void> {
     try {
       // Update tournament status
       await db.update(tournaments)
@@ -243,6 +243,89 @@ export class TournamentService {
       console.log(`Generated ${matches.length} first round matches for tournament ${tournamentId}`);
     } catch (error) {
       console.error('Error generating bracket:', error);
+    }
+  }
+
+  async getMatch(matchId: number): Promise<TournamentMatch | null> {
+    try {
+      const [match] = await db.select().from(tournamentMatches).where(eq(tournamentMatches.id, matchId));
+      if (!match) return null;
+      return {
+        id: match.id,
+        tournamentId: match.tournamentId,
+        round: match.round,
+        matchNumber: match.matchNumber,
+        player1Id: match.player1Id || undefined,
+        player2Id: match.player2Id || undefined,
+        player1Score: match.player1Score || 0,
+        player2Score: match.player2Score || 0,
+        winnerId: match.winnerId || undefined,
+        status: match.status as 'pending' | 'in_progress' | 'completed',
+        roomId: match.roomId || undefined
+      };
+    } catch (error) {
+      console.error('Error getting match:', error);
+      return null;
+    }
+  }
+
+  async updateMatchRoom(matchId: number, roomId: string): Promise<void> {
+    try {
+      await db.update(tournamentMatches)
+        .set({ roomId, status: 'in_progress', startedAt: new Date() })
+        .where(eq(tournamentMatches.id, matchId));
+    } catch (error) {
+      console.error('Error updating match room:', error);
+    }
+  }
+
+  async getAllTournaments(): Promise<Tournament[]> {
+    try {
+      const all = await db.select().from(tournaments)
+        .orderBy(desc(tournaments.createdAt));
+
+      const result: Tournament[] = [];
+      for (const t of all) {
+        const participants = await db.select().from(tournamentParticipants)
+          .where(eq(tournamentParticipants.tournamentId, t.id));
+        result.push({
+          id: t.id, name: t.name, category: t.category, difficulty: t.difficulty,
+          maxPlayers: t.maxPlayers || 8, currentPlayers: t.currentPlayers || 0,
+          status: t.status as 'registration' | 'in_progress' | 'completed',
+          startTime: t.startTime || undefined, endTime: t.endTime || undefined,
+          winnerId: t.winnerId || undefined, prizePool: t.prizePool || 0,
+          participants: participants.map((p: any) => ({
+            id: p.id, tournamentId: p.tournamentId, playerId: p.playerId,
+            playerName: p.playerName, seed: p.seed || undefined,
+            currentRound: p.currentRound || 0, eliminated: p.eliminated || false
+          }))
+        });
+      }
+      return result;
+    } catch (error) {
+      console.error('Error getting all tournaments:', error);
+      return [];
+    }
+  }
+
+  async getPendingMatches(tournamentId: number): Promise<TournamentMatch[]> {
+    try {
+      const matches = await db.select().from(tournamentMatches)
+        .where(and(
+          eq(tournamentMatches.tournamentId, tournamentId),
+          eq(tournamentMatches.status, 'pending')
+        ));
+      return matches.map((m: any) => ({
+        id: m.id, tournamentId: m.tournamentId, round: m.round,
+        matchNumber: m.matchNumber, player1Id: m.player1Id || undefined,
+        player2Id: m.player2Id || undefined, player1Score: m.player1Score || 0,
+        player2Score: m.player2Score || 0, winnerId: m.winnerId || undefined,
+        status: m.status as 'pending' | 'in_progress' | 'completed',
+        roomId: m.roomId || undefined
+      }));
+    } catch (error) {
+      console.error('Error getting pending matches:', error);
+      return [];
     }
   }
 

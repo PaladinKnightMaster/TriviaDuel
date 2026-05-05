@@ -47,7 +47,7 @@ export interface LeaderboardEntry {
   rank: number;
 }
 
-export type GamePhase = 'menu' | 'matchmaking' | 'playing' | 'results';
+export type GamePhase = 'menu' | 'matchmaking' | 'playing' | 'results' | 'tournament';
 
 export interface Answer {
   playerId: string;

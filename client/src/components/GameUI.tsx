@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { useTrivia } from '../lib/stores/useTrivia';
 import { useSocket } from '../lib/stores/useSocket';
+import { useTournament } from '../lib/stores/useTournament';
 import { socketClient } from '../lib/socket';
 import { GameLobby } from './GameLobby';
 import { Matchmaking } from './Matchmaking';
 import { TriviaGame } from './TriviaGame';
 import GameResults from './GameResults';
 import { PlayerProfile } from './PlayerProfile';
+import { Tournament } from './Tournament';
 
 export function GameUI() {
   const { phase, gameResults, resetGame, setPhase } = useTrivia();
   const { disconnect } = useSocket();
+  const { currentTournament, clearTournament } = useTournament();
   const [showProfile, setShowProfile] = useState(false);
 
   const handlePlayAgain = () => {
@@ -21,6 +24,10 @@ export function GameUI() {
   const handleMainMenu = () => {
     socketClient.emit('leaveMatchmaking');
     resetGame();
+  };
+
+  const handleBackToBracket = () => {
+    setPhase('tournament');
   };
 
   // Profile overlay takes priority
@@ -35,6 +42,8 @@ export function GameUI() {
       return <Matchmaking />;
     case 'playing':
       return <TriviaGame />;
+    case 'tournament':
+      return <Tournament />;
     case 'results':
       if (gameResults) {
         return (
@@ -43,8 +52,12 @@ export function GameUI() {
             winner={gameResults.winner}
             totalQuestions={gameResults.totalQuestions}
             currentPlayerId={socketClient.id || ''}
+            correctAnswersPerPlayer={gameResults.correctAnswersPerPlayer}
+            maxStreakPerPlayer={gameResults.maxStreakPerPlayer}
+            tournamentMatchId={gameResults.tournamentMatchId}
             onPlayAgain={handlePlayAgain}
             onMainMenu={handleMainMenu}
+            onBackToBracket={gameResults.tournamentMatchId ? handleBackToBracket : undefined}
           />
         );
       }

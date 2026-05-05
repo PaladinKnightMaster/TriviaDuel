@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { useTrivia } from '../lib/stores/useTrivia';
+import { useSocket } from '../lib/stores/useSocket';
 import { socketClient } from '../lib/socket';
 import { Clock, Trophy, Flame, Users } from 'lucide-react';
 

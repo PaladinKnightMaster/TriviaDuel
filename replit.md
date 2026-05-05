@@ -19,40 +19,47 @@ client/              # React SPA (Vite, port 5000 via proxy)
       GameLobby.tsx  # Main menu, auth button, profile button, PvP/PvE entry
       Matchmaking.tsx # PvP lobby, category/difficulty select, ready-up flow
       TriviaGame.tsx  # Live game: timer, question, answer buttons, scoreboard
-      GameResults.tsx # End-of-game results, winner, scores, replay/menu
-      GameUI.tsx      # Phase router: menu → matchmaking → playing → results → profile
+      GameResults.tsx # End-of-game results with confetti, score count-up, correct answers, best streak
+      GameUI.tsx      # Phase router: menu → matchmaking → playing → results → tournament → profile
       Leaderboard.tsx # Leaderboard REST API display
       CategorySelect.tsx # Static category showcase
       AuthModal.tsx   # Login/Register modal with tabs (Sprint 1)
       AchievementToast.tsx # Real-time achievement popup toast, slide-in animation (Sprint 1)
       PlayerProfile.tsx    # Stats + achievement badges page (Sprint 1)
+      Tournament.tsx  # Browse/create/join tournaments lobby (Sprint 2)
+      TournamentBracket.tsx # Bracket visualization + "Play Match" game-room bridge (Sprint 2)
     lib/
       socket.ts       # Raw socket.io-client + JWT handshake + reconnectWithToken()
                       # socketClient.on() stores listeners and re-attaches on reconnect
                       # Duplicate listener guard prevents double-registration
       stores/
-        useTrivia.tsx  # Zustand: game phase, question state, results, player list
+        useTrivia.tsx  # Zustand: game phase, question state, results (+ correctAnswersPerPlayer, maxStreakPerPlayer)
         useSocket.tsx  # Zustand: socket actions — all handlers registered via socketClient.on()
         useAuth.ts     # Zustand: JWT auth state, login/register/logout + localStorage
+        useTournament.ts # Zustand: tournament state — browse, current, bracket matches, pending match
 
 server/
   index.ts            # Express entry point, port 5000
-  routes.ts           # REST: /api/auth/*, /api/leaderboard, /api/player/:id/*, /api/player/:id/achievements
+  routes.ts           # REST: /api/auth/*, /api/leaderboard, /api/player/:id/*, /api/tournaments/*
   gameServer.ts       # Socket.IO hub: JWT handshake, real-time events, achievement triggers
                       # getDbPlayerId(): resolves socket.id → "user_2" → "2" for DB writes
+                      # authToSocketId reverse map: authId → socket.id (for tournament notifications)
+                      # joinTournamentMatch: creates PvP room, auto-starts when both players join
+                      # finishGame enriched: correctAnswersPerPlayer + maxStreakPerPlayer in gameEnded
+                      # Tournament bridge: updateMatchResult + tournamentUpdated after match ends
   gameLogic.ts        # In-memory rooms, answer tracking, maxStreakPerPlayer tracking
   matchmaking.ts      # ELO queue, skill-based matching, tier system
   questionBank.ts     # 270 questions (6 categories × 3 difficulties × 15 questions)
   storage.ts          # Drizzle ORM + PostgreSQL (pg Pool driver) + in-memory fallback
   authService.ts      # JWT signToken/verifyToken + bcrypt register/login/getUserById
   achievementService.ts # 10 achievements — checkAndAwardAchievements() uses maxStreakPerPlayer
-  tournamentService.ts # Tournament CRUD + bracket generation (backend built, no UI yet)
+  tournamentService.ts # Tournament CRUD + bracket gen + getMatch/updateMatchRoom/getPendingMatches
   socialService.ts    # Profiles, friends, messages, invites (backend built, no UI yet)
   customCategoryService.ts # UGC categories + ratings (fully wired)
 
 shared/
   schema.ts           # Drizzle schema (14 tables) + shared TypeScript interfaces
-                      # GameRoom includes maxStreakPerPlayer: Record<string, number>
+                      # GameRoom includes maxStreakPerPlayer + tournamentMatchId?: number
 ```
 
 ## Database (PostgreSQL — 14 tables)

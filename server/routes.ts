@@ -4,6 +4,9 @@ import { GameServer } from "./gameServer";
 import { storage } from "./storage";
 import { authService } from "./authService";
 import { achievementService } from "./achievementService";
+import { TournamentService } from "./tournamentService";
+
+const tournamentService = new TournamentService();
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
@@ -85,6 +88,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch achievements" });
     }
+  });
+
+  // ── TOURNAMENTS ────────────────────────────────────────────────────────────
+  app.get("/api/tournaments", async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const all = await tournamentService.getAllTournaments();
+      const filtered = status ? all.filter(t => t.status === status) : all;
+      res.json(filtered);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch tournaments" });
+    }
+  });
+
+  app.post("/api/tournaments", async (req, res) => {
+    const { name, category, difficulty, maxPlayers, prizePool } = req.body;
+    if (!name || !category || !difficulty) {
+      return res.status(400).json({ error: "name, category, difficulty required" });
+    }
+    const tournament = await tournamentService.createTournament(
+      name, category, difficulty, maxPlayers || 8, prizePool || 0
+    );
+    if (!tournament) return res.status(500).json({ error: "Failed to create tournament" });
+    res.json(tournament);
+  });
+
+  app.get("/api/tournaments/:id", async (req, res) => {
+    const tournament = await tournamentService.getTournament(parseInt(req.params.id));
+    if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+    res.json(tournament);
+  });
+
+  app.get("/api/tournaments/:id/matches", async (req, res) => {
+    const round = req.query.round ? parseInt(req.query.round as string) : undefined;
+    const matches = await tournamentService.getTournamentMatches(parseInt(req.params.id), round);
+    res.json(matches);
   });
 
   // ── HTTP SERVER + WEBSOCKET ────────────────────────────────────────────────

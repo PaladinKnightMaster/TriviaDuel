@@ -6,6 +6,9 @@ interface GameResults {
   finalScores: Player[];
   winner: Player | null;
   totalQuestions: number;
+  correctAnswersPerPlayer: Record<string, number>;
+  maxStreakPerPlayer: Record<string, number>;
+  tournamentMatchId?: number;
 }
 
 interface TriviaState {
