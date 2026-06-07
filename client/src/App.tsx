@@ -3,6 +3,7 @@ import { useSocket } from './lib/stores/useSocket';
 import { useTrivia } from './lib/stores/useTrivia';
 import { useAuth } from './lib/stores/useAuth';
 import { useTournament } from './lib/stores/useTournament';
+import { useSocial } from './lib/stores/useSocial';
 import { GameUI } from './components/GameUI';
 import { AchievementToast } from './components/AchievementToast';
 import { socketClient } from './lib/socket';
@@ -13,6 +14,7 @@ function App() {
   const { setPhase, setCurrentQuestion, updatePlayers, setGameResults } = useTrivia();
   const { initFromStorage } = useAuth();
   const { setTournaments, setCurrentTournament, setBracketMatches } = useTournament();
+  const { setFriends, setFriendRequests, incrementPendingRequests, setFriendOnlineStatus } = useSocial();
 
   // Boot: restore auth from localStorage before connecting socket
   useEffect(() => {
@@ -96,6 +98,26 @@ function App() {
     socketClient.on('tournamentMatches', onTournamentMatches);
     socketClient.on('tournamentListUpdated', onTournamentListUpdated);
 
+    // Social events — persistent across all phases
+    const onFriendsList = (friends: any[]) => setFriends(friends);
+    const onFriendRequests = (requests: any[]) => setFriendRequests(requests);
+    const onFriendRequestReceived = () => incrementPendingRequests();
+    const onFriendRequestAccepted = (_data: any) => {
+      // friendsList is already pushed by a separate 'friendsList' socket event
+      // Nothing extra needed here — can be used for toast notifications later
+    };
+    const onPlayerOnline = ({ playerId }: { playerId: string }) =>
+      setFriendOnlineStatus(playerId, true);
+    const onPlayerOffline = ({ playerId }: { playerId: string }) =>
+      setFriendOnlineStatus(playerId, false);
+
+    socketClient.on('friendsList', onFriendsList);
+    socketClient.on('friendRequests', onFriendRequests);
+    socketClient.on('friendRequestReceived', onFriendRequestReceived);
+    socketClient.on('friendRequestAccepted', onFriendRequestAccepted);
+    socketClient.on('playerOnline', onPlayerOnline);
+    socketClient.on('playerOffline', onPlayerOffline);
+
     return () => {
       socketClient.off('gameStarted', onGameStarted);
       socketClient.off('newQuestion', onNewQuestion);
@@ -109,8 +131,14 @@ function App() {
       socketClient.off('tournamentComplete', onTournamentComplete);
       socketClient.off('tournamentMatches', onTournamentMatches);
       socketClient.off('tournamentListUpdated', onTournamentListUpdated);
+      socketClient.off('friendsList', onFriendsList);
+      socketClient.off('friendRequests', onFriendRequests);
+      socketClient.off('friendRequestReceived', onFriendRequestReceived);
+      socketClient.off('friendRequestAccepted', onFriendRequestAccepted);
+      socketClient.off('playerOnline', onPlayerOnline);
+      socketClient.off('playerOffline', onPlayerOffline);
     };
-  }, [setPhase, setCurrentQuestion, updatePlayers, setGameResults, setTournaments, setCurrentTournament, setBracketMatches]);
+  }, [setPhase, setCurrentQuestion, updatePlayers, setGameResults, setTournaments, setCurrentTournament, setBracketMatches, setFriends, setFriendRequests, incrementPendingRequests, setFriendOnlineStatus]);
 
   // Automatically transition to game when room starts
   useEffect(() => {

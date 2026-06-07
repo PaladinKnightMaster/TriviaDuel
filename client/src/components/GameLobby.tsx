@@ -8,7 +8,9 @@ import { useAuth } from '../lib/stores/useAuth';
 import { CategorySelect } from './CategorySelect';
 import { Leaderboard } from './Leaderboard';
 import { AuthModal } from './AuthModal';
-import { Trophy, Users, Zap, BookOpen, ChevronDown, ChevronUp, User, LogOut, Award } from 'lucide-react';
+import { Trophy, Users, Zap, BookOpen, ChevronDown, ChevronUp, User, LogOut, Award, UserPlus } from 'lucide-react';
+import { FriendsPanel } from './FriendsPanel';
+import { useSocial } from '../lib/stores/useSocial';
 
 const CATEGORIES = [
   { value: 'general', label: 'General Knowledge' },
@@ -34,10 +36,12 @@ export function GameLobby({ onOpenProfile }: GameLobbyProps) {
   const { setPlayerName: setSocketPlayerName, joinMatchmaking } = useSocket();
   const { user, logout } = useAuth();
 
+  const { pendingRequestCount } = useSocial();
   const [pveCategory, setPveCategory] = useState('general');
   const [pveDifficulty, setPveDifficulty] = useState('medium');
   const [showPveOptions, setShowPveOptions] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showFriendsPanel, setShowFriendsPanel] = useState(false);
 
   const handleStartPvP = () => {
     const name = user?.username || playerName.trim();
@@ -78,6 +82,19 @@ export function GameLobby({ onOpenProfile }: GameLobbyProps) {
           <div className="absolute right-0 top-0 flex items-center gap-2">
             {user ? (
               <>
+                <button
+                  onClick={() => setShowFriendsPanel(true)}
+                  className="relative flex items-center gap-1.5 text-sm text-blue-300 hover:text-blue-200 bg-blue-900/40 border border-blue-500/40 rounded-xl px-3 py-1.5 transition-all hover:bg-blue-900/60"
+                  title="Friends"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Friends</span>
+                  {pendingRequestCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
+                      {pendingRequestCount > 9 ? '9+' : pendingRequestCount}
+                    </span>
+                  )}
+                </button>
                 <button
                   onClick={onOpenProfile}
                   className="flex items-center gap-1.5 text-sm text-purple-300 hover:text-purple-200 bg-purple-900/40 border border-purple-500/40 rounded-xl px-3 py-1.5 transition-all hover:bg-purple-900/60"
@@ -294,6 +311,9 @@ export function GameLobby({ onOpenProfile }: GameLobbyProps) {
 
       {/* Auth Modal */}
       {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+
+      {/* Friends Panel */}
+      {showFriendsPanel && <FriendsPanel onClose={() => setShowFriendsPanel(false)} />}
     </div>
   );
 }

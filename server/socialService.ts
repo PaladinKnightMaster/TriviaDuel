@@ -395,6 +395,25 @@ export class SocialService {
     }
   }
 
+  async getFriendshipById(friendshipId: number): Promise<Friendship | null> {
+    try {
+      const [friendship] = await db.select().from(friendships)
+        .where(eq(friendships.id, friendshipId));
+      if (!friendship) return null;
+      return {
+        id: friendship.id,
+        requesterId: friendship.requesterId,
+        addresseeId: friendship.addresseeId,
+        status: friendship.status as 'pending' | 'accepted' | 'declined' | 'blocked',
+        createdAt: friendship.createdAt!,
+        updatedAt: friendship.updatedAt!
+      };
+    } catch (error) {
+      console.error('Error getting friendship by id:', error);
+      return null;
+    }
+  }
+
   async getGameInvites(playerId: string): Promise<GameInvite[]> {
     try {
       const invites = await db.select().from(gameInvites)

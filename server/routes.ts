@@ -5,8 +5,10 @@ import { storage } from "./storage";
 import { authService } from "./authService";
 import { achievementService } from "./achievementService";
 import { TournamentService } from "./tournamentService";
+import { SocialService } from "./socialService";
 
 const tournamentService = new TournamentService();
+const socialService = new SocialService();
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
@@ -124,6 +126,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const round = req.query.round ? parseInt(req.query.round as string) : undefined;
     const matches = await tournamentService.getTournamentMatches(parseInt(req.params.id), round);
     res.json(matches);
+  });
+
+  // ── SOCIAL ─────────────────────────────────────────────────────────────────
+  app.get("/api/social/friends-leaderboard", async (req, res) => {
+    const userId = req.query.userId as string;
+    if (!userId) return res.status(400).json({ error: "userId required" });
+    try {
+      const friends = await socialService.getFriends(userId);
+      const leaderboard = await storage.getLeaderboard();
+      const friendIds = new Set(friends.map((f) => f.playerId));
+      friendIds.add(userId); // include self
+      const filtered = leaderboard.filter((entry) => friendIds.has(entry.playerId));
+      res.json(filtered);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch friends leaderboard" });
+    }
   });
 
   // ── HTTP SERVER + WEBSOCKET ────────────────────────────────────────────────

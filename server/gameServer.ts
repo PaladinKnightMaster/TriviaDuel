@@ -7,6 +7,7 @@ import { CustomCategoryService } from './customCategoryService';
 import { storage } from './storage';
 import { authService } from './authService';
 import { achievementService } from './achievementService';
+import { SocialService } from './socialService';
 import { Player, Answer } from '../shared/schema';
 
 export class GameServer {
@@ -23,6 +24,10 @@ export class GameServer {
   private socketToAuthId: Map<string, string>;
   // Reverse map: authId ('user_123') → current socket.id  (authenticated players only)
   private authToSocketId: Map<string, string>;
+  // Social service for friends / profiles
+  private social: SocialService;
+  // DB player IDs of currently connected authenticated players
+  private onlinePlayers: Set<string>;
 
   constructor(httpServer: Server) {
     this.io = new SocketServer(httpServer, {
@@ -44,6 +49,8 @@ export class GameServer {
     this.advancingRooms = new Set();
     this.socketToAuthId = new Map();
     this.authToSocketId = new Map();
+    this.social = new SocialService();
+    this.onlinePlayers = new Set();
 
     this.setupSocketHandlers();
   }
@@ -297,6 +304,15 @@ export class GameServer {
       this.socketToAuthId.set(socket.id, authId);
       if (authId !== socket.id) this.authToSocketId.set(authId, socket.id);
       console.log(`Player connected: ${socket.id}${authId !== socket.id ? ` [auth: ${authId}]` : ''}`);
+
+      // Auto-create social profile and mark authenticated player as online
+      if (authId !== socket.id) {
+        const dbPlayerId = authId.replace('user_', '');
+        const displayName = this.playerNames.get(socket.id) || `Player${socket.id.substr(0, 4)}`;
+        this.social.createOrUpdateProfile(dbPlayerId, displayName).catch(console.error);
+        this.onlinePlayers.add(dbPlayerId);
+        this.notifyFriendsOnlineStatus(dbPlayerId, true).catch(console.error);
+      }
 
       socket.on('setPlayerName', (name: string) => {
         // Only update name if not already set from JWT
@@ -556,12 +572,93 @@ export class GameServer {
         socket.emit('searchCategoriesResults', await this.customCategories.searchCategories(searchTerm, isPublicOnly));
       });
 
+      // ── SOCIAL FEATURES ───────────────────────────────────────────────────────
+      socket.on('searchPlayers', async ({ query }: { query: string }) => {
+        const myDbId = this.getDbPlayerId(socket.id);
+        if (!myDbId) { socket.emit('searchResults', []); return; }
+        const results = await this.social.searchProfiles(query || '');
+        const filtered = results.filter(p => p.playerId !== myDbId);
+        const myFriends = await this.social.getFriends(myDbId);
+        const friendIds = new Set(myFriends.map(f => f.playerId));
+        socket.emit('searchResults', filtered.map(p => ({
+          ...p,
+          isFriend: friendIds.has(p.playerId),
+          isOnline: this.onlinePlayers.has(p.playerId)
+        })));
+      });
+
+      socket.on('sendFriendRequest', async ({ targetPlayerId }: { targetPlayerId: string }) => {
+        const myDbId = this.getDbPlayerId(socket.id);
+        if (!myDbId) { socket.emit('friendRequestError', 'Not authenticated'); return; }
+        if (myDbId === targetPlayerId) { socket.emit('friendRequestError', 'Cannot add yourself'); return; }
+        const success = await this.social.sendFriendRequest(myDbId, targetPlayerId);
+        if (success) {
+          socket.emit('friendRequestSent', { targetPlayerId });
+          // Notify recipient in real-time if online
+          const myProfile = await this.social.getProfile(myDbId);
+          const targetSocketId = this.authToSocketId.get(`user_${targetPlayerId}`);
+          if (targetSocketId && myProfile) {
+            const targetSocket = this.io.sockets.sockets.get(targetSocketId);
+            if (targetSocket) {
+              targetSocket.emit('friendRequestReceived', { requesterProfile: myProfile });
+            }
+          }
+        } else {
+          socket.emit('friendRequestError', 'Request already exists or users are already friends');
+        }
+      });
+
+      socket.on('respondToFriendRequest', async ({ friendshipId, response }: { friendshipId: number; response: 'accepted' | 'declined' }) => {
+        const myDbId = this.getDbPlayerId(socket.id);
+        if (!myDbId) return;
+        // Verify that this socket's player is the addressee of the request
+        const friendship = await this.social.getFriendshipById(friendshipId);
+        if (!friendship || friendship.addresseeId !== myDbId) return;
+        const success = await this.social.respondToFriendRequest(friendshipId, response);
+        if (!success) return;
+        // Refresh friends list for this player
+        const myFriends = await this.social.getFriends(myDbId);
+        socket.emit('friendsList', myFriends.map(f => ({ ...f, isOnline: this.onlinePlayers.has(f.playerId) })));
+        if (response === 'accepted') {
+          // Also refresh requester's friends list if they're online
+          const requesterSocketId = this.authToSocketId.get(`user_${friendship.requesterId}`);
+          if (requesterSocketId) {
+            const requesterSocket = this.io.sockets.sockets.get(requesterSocketId);
+            if (requesterSocket) {
+              const requesterFriends = await this.social.getFriends(friendship.requesterId);
+              requesterSocket.emit('friendsList', requesterFriends.map(f => ({ ...f, isOnline: this.onlinePlayers.has(f.playerId) })));
+              const myProfile = await this.social.getProfile(myDbId);
+              if (myProfile) requesterSocket.emit('friendRequestAccepted', { friendProfile: myProfile });
+            }
+          }
+        }
+      });
+
+      socket.on('getFriends', async () => {
+        const myDbId = this.getDbPlayerId(socket.id);
+        if (!myDbId) { socket.emit('friendsList', []); return; }
+        const friends = await this.social.getFriends(myDbId);
+        socket.emit('friendsList', friends.map(f => ({ ...f, isOnline: this.onlinePlayers.has(f.playerId) })));
+      });
+
+      socket.on('getFriendRequests', async () => {
+        const myDbId = this.getDbPlayerId(socket.id);
+        if (!myDbId) { socket.emit('friendRequests', []); return; }
+        socket.emit('friendRequests', await this.social.getFriendRequests(myDbId));
+      });
+
       // DISCONNECT
       socket.on('disconnect', () => {
         console.log(`Player disconnected: ${socket.id}`);
         const _authId = this.socketToAuthId.get(socket.id);
+        const _dbPlayerId = this.getDbPlayerId(socket.id); // capture before maps are cleared
         if (_authId && _authId !== socket.id) this.authToSocketId.delete(_authId);
         this.socketToAuthId.delete(socket.id);
+        // Social: mark offline and notify friends
+        if (_dbPlayerId) {
+          this.onlinePlayers.delete(_dbPlayerId);
+          this.notifyFriendsOnlineStatus(_dbPlayerId, false).catch(console.error);
+        }
         this.matchmaking.leaveQueue(socket.id);
 
         const roomId = this.playerRooms.get(socket.id);
@@ -637,6 +734,26 @@ export class GameServer {
       }
     } catch (error) {
       console.error('Error updating leaderboards:', error);
+    }
+  }
+
+  private async notifyFriendsOnlineStatus(playerId: string, isOnline: boolean): Promise<void> {
+    try {
+      const friends = await this.social.getFriends(playerId);
+      const myProfile = await this.social.getProfile(playerId);
+      for (const friend of friends) {
+        const friendSocketId = this.authToSocketId.get(`user_${friend.playerId}`);
+        if (!friendSocketId) continue;
+        const friendSocket = this.io.sockets.sockets.get(friendSocketId);
+        if (friendSocket) {
+          friendSocket.emit(isOnline ? 'playerOnline' : 'playerOffline', {
+            playerId,
+            displayName: myProfile?.displayName
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error notifying friends of online status:', err);
     }
   }
 
