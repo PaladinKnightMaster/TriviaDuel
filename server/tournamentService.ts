@@ -87,11 +87,6 @@ export class TournamentService {
         })
         .where(eq(tournaments.id, tournamentId));
 
-      // Check if tournament is full and should start
-      if ((tournament.currentPlayers || 0) + 1 >= (tournament.maxPlayers || 8)) {
-        await this.startTournament(tournamentId);
-      }
-
       return true;
     } catch (error) {
       console.error('Error joining tournament:', error);

@@ -12,8 +12,7 @@ import { Tournament } from './Tournament';
 
 export function GameUI() {
   const { phase, gameResults, resetGame, setPhase } = useTrivia();
-  const { disconnect } = useSocket();
-  const { currentTournament, clearTournament } = useTournament();
+  const { } = useSocket(); // keep import live for side-effects
   const [showProfile, setShowProfile] = useState(false);
 
   const handlePlayAgain = () => {

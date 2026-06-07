@@ -459,7 +459,7 @@ export class GameServer {
       });
 
       socket.on('getTournaments', async () => {
-        socket.emit('tournamentsData', await this.tournament.getActiveTournaments());
+        socket.emit('tournamentsData', await this.tournament.getAllTournaments());
       });
 
       socket.on('getTournament', async ({ tournamentId }) => {
@@ -485,6 +485,7 @@ export class GameServer {
           room = this.gameLogic.createRoom(roomId, 'pvp', tournament.category, tournament.difficulty);
           if (!room) { socket.emit('error', 'Failed to create match room'); return; }
           room.tournamentMatchId = matchId;
+          room.maxPlayers = 2; // Tournament matches are always 1v1
           await this.tournament.updateMatchRoom(matchId, roomId);
         }
 

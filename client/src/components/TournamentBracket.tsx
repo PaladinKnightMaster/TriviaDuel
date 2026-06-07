@@ -157,7 +157,6 @@ export function TournamentBracket({ onBack, onLeave }: Props) {
                       match={match}
                       onPlay={() => {
                         joinTournamentMatch(match.id);
-                        setPhase('playing');
                       }}
                     />
                   ))}

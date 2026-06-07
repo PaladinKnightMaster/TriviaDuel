@@ -143,6 +143,19 @@ JWT auth (register/login/me endpoints), Socket.IO JWT handshake, persistent `soc
 6. `socketClient.on()` could register duplicate handlers → added `includes()` guard
 7. `AchievementToast` popped in instantly → added `entering` state for slide-in animation
 
-### Sprint 2 — Competitive Core 🔜
-- Enhanced game results screen (per-question breakdown, score animation, rematch button)
-- Tournament mode (create/join, bracket visualization, automatic match scheduling, winner podium)
+### Sprint 2 — Competitive Core ✅
+Enhanced `GameResults` (confetti, score count-up, correct-answer count, accuracy %, best streak), Tournament mode end-to-end (create/join/browse, bracket visualization, game-room bridge, auto-start, post-game result writes), `useTournament` Zustand store, REST `/api/tournaments/*` routes, `authToSocketId` reverse map in `gameServer.ts`, `Tournament.tsx` + `TournamentBracket.tsx`.
+
+**Sprint 2 Code Audit — Bugs Fixed:**
+1. **Double bracket generation** — `tournamentService.joinTournament` called `startTournament` internally AND `gameServer` called it again → duplicate matches. Removed internal call; `gameServer` is sole orchestrator.
+2. **Premature phase transition** — "Play Match" called `setPhase('playing')` immediately; first player saw empty game screen. Removed; driven solely by `gameStarted` socket event.
+3. **Tournament room maxPlayers=4** — PvP rooms default to 4 slots. Added `room.maxPlayers = 2` for tournament 1v1 rooms.
+4. **`getTournaments` socket returned only `registration`-status** — changed to `getAllTournaments()` for consistency with REST.
+5. Dead code (`clearTournament`/`currentTournament` unused imports) removed from `GameUI.tsx`.
+
+### Sprint 3 — Social Layer + Community 🔜
+- **Friends system** — search/add/remove, online status, invite to match (`socialService.ts` backend ready)
+- **Private matches** — create room with 6-char code, join by code, invite via friend list
+- **Custom categories UI** — browse/create/play community question sets (`customCategoryService.ts` backend ready)
+- **Tournament UX polish** — real player names in bracket, opponent-joined notification, rematch flow, winner podium
+- **Mobile layout pass** — responsive breakpoints across all screens
