@@ -8,8 +8,9 @@ import { useAuth } from '../lib/stores/useAuth';
 import { CategorySelect } from './CategorySelect';
 import { Leaderboard } from './Leaderboard';
 import { AuthModal } from './AuthModal';
-import { Trophy, Users, Zap, BookOpen, ChevronDown, ChevronUp, User, LogOut, Award, UserPlus } from 'lucide-react';
+import { Trophy, Users, Zap, BookOpen, ChevronDown, ChevronUp, User, LogOut, Award, UserPlus, Lock } from 'lucide-react';
 import { FriendsPanel } from './FriendsPanel';
+import { PrivateMatchModal } from './PrivateMatchModal';
 import { useSocial } from '../lib/stores/useSocial';
 
 const CATEGORIES = [
@@ -42,6 +43,7 @@ export function GameLobby({ onOpenProfile }: GameLobbyProps) {
   const [showPveOptions, setShowPveOptions] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showFriendsPanel, setShowFriendsPanel] = useState(false);
+  const [showPrivateModal, setShowPrivateModal] = useState(false);
 
   const handleStartPvP = () => {
     const name = user?.username || playerName.trim();
@@ -288,6 +290,20 @@ export function GameLobby({ onOpenProfile }: GameLobbyProps) {
           </Card>
         </div>
 
+        {/* Private Match */}
+        <button
+          onClick={() => setShowPrivateModal(true)}
+          disabled={!canPlay}
+          className="w-full py-4 rounded-2xl bg-gradient-to-r from-purple-700/80 to-indigo-700/80 hover:from-purple-600/90 hover:to-indigo-600/90 disabled:opacity-40 disabled:cursor-not-allowed border border-purple-400/40 text-white font-semibold transition-all flex items-center justify-center gap-3 shadow-lg shadow-purple-900/30"
+        >
+          <Lock className="w-5 h-5 text-purple-300" />
+          <div className="text-left">
+            <div className="font-bold">Private Match</div>
+            <div className="text-xs text-purple-200/70 font-normal">Create or join a room with a code</div>
+          </div>
+          <Users className="w-5 h-5 text-purple-300 ml-auto" />
+        </button>
+
         {/* Tournament Mode */}
         <button
           onClick={() => setPhase('tournament')}
@@ -314,6 +330,9 @@ export function GameLobby({ onOpenProfile }: GameLobbyProps) {
 
       {/* Friends Panel */}
       {showFriendsPanel && <FriendsPanel onClose={() => setShowFriendsPanel(false)} />}
+
+      {/* Private Match Modal */}
+      {showPrivateModal && <PrivateMatchModal onClose={() => setShowPrivateModal(false)} />}
     </div>
   );
 }

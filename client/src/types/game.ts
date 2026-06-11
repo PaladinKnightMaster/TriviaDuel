@@ -27,6 +27,8 @@ export interface GameRoom {
   category: string;
   difficulty: string;
   maxPlayers: number;
+  isPrivate?: boolean;
+  privateCode?: string;
 }
 
 export interface GameStats {

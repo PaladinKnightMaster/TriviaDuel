@@ -4,8 +4,10 @@ import { useTrivia } from './lib/stores/useTrivia';
 import { useAuth } from './lib/stores/useAuth';
 import { useTournament } from './lib/stores/useTournament';
 import { useSocial } from './lib/stores/useSocial';
+import { usePrivateMatch } from './lib/stores/usePrivateMatch';
 import { GameUI } from './components/GameUI';
 import { AchievementToast } from './components/AchievementToast';
+import { MatchInviteToast } from './components/MatchInviteToast';
 import { socketClient } from './lib/socket';
 import "@fontsource/inter";
 
@@ -15,6 +17,7 @@ function App() {
   const { initFromStorage } = useAuth();
   const { setTournaments, setCurrentTournament, setBracketMatches } = useTournament();
   const { setFriends, setFriendRequests, incrementPendingRequests, setFriendOnlineStatus } = useSocial();
+  const { setIncomingInvite } = usePrivateMatch();
 
   // Boot: restore auth from localStorage before connecting socket
   useEffect(() => {
@@ -118,6 +121,16 @@ function App() {
     socketClient.on('playerOnline', onPlayerOnline);
     socketClient.on('playerOffline', onPlayerOffline);
 
+    // Private match events
+    const onPrivateRoomCreated = (_data: any) => setPhase('matchmaking');
+    const onJoinedPrivateRoom = (_data: any) => setPhase('matchmaking');
+    const onMatchInviteReceived = (invite: { fromName: string; roomCode: string }) =>
+      setIncomingInvite(invite);
+
+    socketClient.on('privateRoomCreated', onPrivateRoomCreated);
+    socketClient.on('joinedPrivateRoom', onJoinedPrivateRoom);
+    socketClient.on('matchInviteReceived', onMatchInviteReceived);
+
     return () => {
       socketClient.off('gameStarted', onGameStarted);
       socketClient.off('newQuestion', onNewQuestion);
@@ -137,8 +150,11 @@ function App() {
       socketClient.off('friendRequestAccepted', onFriendRequestAccepted);
       socketClient.off('playerOnline', onPlayerOnline);
       socketClient.off('playerOffline', onPlayerOffline);
+      socketClient.off('privateRoomCreated', onPrivateRoomCreated);
+      socketClient.off('joinedPrivateRoom', onJoinedPrivateRoom);
+      socketClient.off('matchInviteReceived', onMatchInviteReceived);
     };
-  }, [setPhase, setCurrentQuestion, updatePlayers, setGameResults, setTournaments, setCurrentTournament, setBracketMatches, setFriends, setFriendRequests, incrementPendingRequests, setFriendOnlineStatus]);
+  }, [setPhase, setCurrentQuestion, updatePlayers, setGameResults, setTournaments, setCurrentTournament, setBracketMatches, setFriends, setFriendRequests, incrementPendingRequests, setFriendOnlineStatus, setIncomingInvite]);
 
   // Automatically transition to game when room starts
   useEffect(() => {
@@ -152,6 +168,8 @@ function App() {
       <GameUI />
       {/* Global achievement toast — lives outside game phases */}
       <AchievementToast />
+      {/* Global private match invite toast */}
+      <MatchInviteToast />
     </div>
   );
 }

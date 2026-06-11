@@ -28,6 +28,8 @@ export class GameServer {
   private social: SocialService;
   // DB player IDs of currently connected authenticated players
   private onlinePlayers: Set<string>;
+  // Private room code → roomId
+  private privateRoomCodes: Map<string, string>;
 
   constructor(httpServer: Server) {
     this.io = new SocketServer(httpServer, {
@@ -51,6 +53,7 @@ export class GameServer {
     this.authToSocketId = new Map();
     this.social = new SocialService();
     this.onlinePlayers = new Set();
+    this.privateRoomCodes = new Map();
 
     this.setupSocketHandlers();
   }
@@ -647,6 +650,73 @@ export class GameServer {
         socket.emit('friendRequests', await this.social.getFriendRequests(myDbId));
       });
 
+      // ── PRIVATE MATCHES ───────────────────────────────────────────────────────
+      socket.on('createPrivateRoom', ({ category, difficulty }: { category: string; difficulty: string }) => {
+        const playerName = this.playerNames.get(socket.id) || `Player${socket.id.substr(0, 4)}`;
+        const code = this.generatePrivateCode();
+        const roomId = `private_${code}`;
+
+        const room = this.gameLogic.createRoom(roomId, 'pvp', category, difficulty);
+        room.maxPlayers = 2;
+        room.isPrivate = true;
+        room.privateCode = code;
+
+        this.privateRoomCodes.set(code, roomId);
+
+        this.gameLogic.addPlayerToRoom(roomId, {
+          id: socket.id, name: playerName, score: 0, streak: 0, isReady: false,
+        });
+
+        this.playerRooms.set(socket.id, roomId);
+        socket.join(roomId);
+
+        const updatedRoom = this.gameLogic.getRoom(roomId)!;
+        this.io.to(roomId).emit('roomUpdated', updatedRoom);
+        this.io.to(roomId).emit('playersUpdated', updatedRoom.players);
+        socket.emit('privateRoomCreated', { code, room: updatedRoom });
+      });
+
+      socket.on('joinPrivateRoom', ({ code }: { code: string }) => {
+        const normalCode = code.toUpperCase().trim();
+        const roomId = this.privateRoomCodes.get(normalCode);
+        if (!roomId) { socket.emit('joinPrivateRoomError', 'Invalid room code. Check it and try again.'); return; }
+
+        const room = this.gameLogic.getRoom(roomId);
+        if (!room) { socket.emit('joinPrivateRoomError', 'Room no longer exists.'); return; }
+        if (room.gameState !== 'waiting') { socket.emit('joinPrivateRoomError', 'Game has already started.'); return; }
+        if (room.players.length >= room.maxPlayers) { socket.emit('joinPrivateRoomError', 'Room is full.'); return; }
+        if (room.players.some(p => p.id === socket.id)) { socket.emit('joinPrivateRoomError', 'You are already in this room.'); return; }
+
+        const playerName = this.playerNames.get(socket.id) || `Player${socket.id.substr(0, 4)}`;
+        this.gameLogic.addPlayerToRoom(roomId, {
+          id: socket.id, name: playerName, score: 0, streak: 0, isReady: false,
+        });
+
+        this.playerRooms.set(socket.id, roomId);
+        socket.join(roomId);
+
+        const updatedRoom = this.gameLogic.getRoom(roomId)!;
+        this.io.to(roomId).emit('roomUpdated', updatedRoom);
+        this.io.to(roomId).emit('playersUpdated', updatedRoom.players);
+        socket.emit('joinedPrivateRoom', { code: normalCode, room: updatedRoom });
+      });
+
+      socket.on('inviteToMatch', async ({ targetPlayerId, roomCode }: { targetPlayerId: string; roomCode: string }) => {
+        const myDbId = this.getDbPlayerId(socket.id);
+        const myName = this.playerNames.get(socket.id) || (myDbId ? `User ${myDbId}` : 'Someone');
+
+        const targetSocketId = this.authToSocketId.get(`user_${targetPlayerId}`);
+        if (!targetSocketId) { socket.emit('inviteError', 'Player is not online'); return; }
+
+        const targetSocket = this.io.sockets.sockets.get(targetSocketId);
+        if (targetSocket) {
+          targetSocket.emit('matchInviteReceived', { fromName: myName, roomCode });
+          socket.emit('inviteSent', { targetPlayerId });
+        } else {
+          socket.emit('inviteError', 'Player is not online');
+        }
+      });
+
       // DISCONNECT
       socket.on('disconnect', () => {
         console.log(`Player disconnected: ${socket.id}`);
@@ -663,6 +733,8 @@ export class GameServer {
 
         const roomId = this.playerRooms.get(socket.id);
         if (roomId) {
+          const existingRoom = this.gameLogic.getRoom(roomId);
+          const privateCode = existingRoom?.privateCode;
           const room = this.gameLogic.removePlayerFromRoom(roomId, socket.id);
           if (room) {
             this.io.to(roomId).emit('roomUpdated', room);
@@ -670,6 +742,7 @@ export class GameServer {
           } else {
             // Room was deleted (no players left), clean up timer
             this.clearQuestionTimer(roomId);
+            if (privateCode) this.privateRoomCodes.delete(privateCode);
           }
           this.playerRooms.delete(socket.id);
         }
@@ -735,6 +808,14 @@ export class GameServer {
     } catch (error) {
       console.error('Error updating leaderboards:', error);
     }
+  }
+
+  private generatePrivateCode(): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    // Ensure uniqueness — recurse on collision (extremely unlikely)
+    return this.privateRoomCodes.has(code) ? this.generatePrivateCode() : code;
   }
 
   private async notifyFriendsOnlineStatus(playerId: string, isOnline: boolean): Promise<void> {

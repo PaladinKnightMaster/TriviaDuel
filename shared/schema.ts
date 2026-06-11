@@ -223,6 +223,8 @@ export interface GameRoom {
   fastestAnswerMsPerPlayer: Record<string, number>;
   maxStreakPerPlayer: Record<string, number>;
   tournamentMatchId?: number;
+  isPrivate?: boolean;
+  privateCode?: string;
 }
 
 export interface Answer {
