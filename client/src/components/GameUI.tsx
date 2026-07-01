@@ -9,6 +9,7 @@ import { TriviaGame } from './TriviaGame';
 import GameResults from './GameResults';
 import { PlayerProfile } from './PlayerProfile';
 import { Tournament } from './Tournament';
+import { CustomCategoryBrowser } from './CustomCategoryBrowser';
 
 export function GameUI() {
   const { phase, gameResults, resetGame, setPhase } = useTrivia();
@@ -43,6 +44,8 @@ export function GameUI() {
       return <TriviaGame />;
     case 'tournament':
       return <Tournament />;
+    case 'custom':
+      return <CustomCategoryBrowser />;
     case 'results':
       if (gameResults) {
         return (

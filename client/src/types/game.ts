@@ -29,6 +29,7 @@ export interface GameRoom {
   maxPlayers: number;
   isPrivate?: boolean;
   privateCode?: string;
+  customCategoryId?: number;
 }
 
 export interface GameStats {
@@ -49,7 +50,7 @@ export interface LeaderboardEntry {
   rank: number;
 }
 
-export type GamePhase = 'menu' | 'matchmaking' | 'playing' | 'results' | 'tournament';
+export type GamePhase = 'menu' | 'matchmaking' | 'playing' | 'results' | 'tournament' | 'custom';
 
 export interface Answer {
   playerId: string;

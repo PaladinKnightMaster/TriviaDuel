@@ -225,6 +225,7 @@ export interface GameRoom {
   tournamentMatchId?: number;
   isPrivate?: boolean;
   privateCode?: string;
+  customCategoryId?: number;
 }
 
 export interface Answer {

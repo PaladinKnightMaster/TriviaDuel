@@ -323,7 +323,7 @@ export class GameServer {
       });
 
       // MATCHMAKING
-      socket.on('joinMatchmaking', async ({ mode, category, difficulty }) => {
+      socket.on('joinMatchmaking', async ({ mode, category, difficulty, customCategoryId }) => {
         const playerName = this.playerNames.get(socket.id) || `Player${socket.id.substr(0, 4)}`;
 
         const player: Player = {
@@ -339,6 +339,28 @@ export class GameServer {
         if (roomId) {
           const room = this.gameLogic.getRoom(roomId);
           if (room) {
+            // If a custom category is requested, fetch and load its questions now
+            if (customCategoryId) {
+              room.customCategoryId = customCategoryId;
+              const customCat = await this.customCategories.getCategory(customCategoryId, true);
+              if (customCat && customCat.questions && customCat.questions.length > 0) {
+                const questions = customCat.questions.map(q => ({
+                  id: `custom_${q.id}`,
+                  question: q.question,
+                  options: q.options,
+                  correctAnswer: q.correctAnswer,
+                  category: 'custom',
+                  difficulty: q.difficulty,
+                  timeLimit: 30
+                }));
+                const maxQ = Math.min(questions.length, 10);
+                this.gameLogic.setCustomQuestions(roomId, questions, maxQ);
+                // Increment plays counter asynchronously
+                this.customCategories.incrementCategoryPlays(customCategoryId).catch(() => {});
+                console.log(`Custom category ${customCategoryId} loaded (${questions.length} questions) → room ${roomId}`);
+              }
+            }
+
             // Join ALL matched players to the Socket.IO room.
             // For PvP this fixes the critical bug where only the 2nd player's socket
             // was joined; the 1st player was never notified and stayed stuck in matchmaking.

@@ -8,7 +8,7 @@ import { useAuth } from '../lib/stores/useAuth';
 import { CategorySelect } from './CategorySelect';
 import { Leaderboard } from './Leaderboard';
 import { AuthModal } from './AuthModal';
-import { Trophy, Users, Zap, BookOpen, ChevronDown, ChevronUp, User, LogOut, Award, UserPlus, Lock } from 'lucide-react';
+import { Trophy, Users, Zap, BookOpen, ChevronDown, ChevronUp, User, LogOut, Award, UserPlus, Lock, Globe } from 'lucide-react';
 import { FriendsPanel } from './FriendsPanel';
 import { PrivateMatchModal } from './PrivateMatchModal';
 import { useSocial } from '../lib/stores/useSocial';
@@ -289,6 +289,19 @@ export function GameLobby({ onOpenProfile }: GameLobbyProps) {
             </CardContent>
           </Card>
         </div>
+
+        {/* Community Trivia */}
+        <button
+          onClick={() => setPhase('custom')}
+          className="w-full py-4 rounded-2xl bg-gradient-to-r from-teal-700/80 to-emerald-700/80 hover:from-teal-600/90 hover:to-emerald-600/90 border border-teal-400/40 text-white font-semibold transition-all flex items-center justify-center gap-3 shadow-lg shadow-teal-900/30"
+        >
+          <Globe className="w-5 h-5 text-teal-300" />
+          <div className="text-left">
+            <div className="font-bold">Community Trivia</div>
+            <div className="text-xs text-teal-200/70 font-normal">Browse and play community-made question sets</div>
+          </div>
+          <BookOpen className="w-5 h-5 text-teal-300 ml-auto" />
+        </button>
 
         {/* Private Match */}
         <button

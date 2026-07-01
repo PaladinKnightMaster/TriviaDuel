@@ -5,11 +5,21 @@ export class GameLogic {
   private questionBank: QuestionBank;
   private rooms: Map<string, GameRoom>;
   private roomQuestionHistory: Map<string, string[]>;
+  private customQuestionsMap: Map<string, Question[]>;
 
   constructor() {
     this.questionBank = new QuestionBank();
     this.rooms = new Map();
     this.roomQuestionHistory = new Map();
+    this.customQuestionsMap = new Map();
+  }
+
+  setCustomQuestions(roomId: string, questions: Question[], maxQuestionsOverride?: number): void {
+    this.customQuestionsMap.set(roomId, questions);
+    const room = this.rooms.get(roomId);
+    if (room && maxQuestionsOverride !== undefined) {
+      room.maxQuestions = maxQuestionsOverride;
+    }
   }
 
   createRoom(roomId: string, mode: 'pvp' | 'pve', category: string, difficulty: string): GameRoom {
@@ -93,7 +103,17 @@ export class GameLogic {
     if (room.questionIndex >= room.maxQuestions) return null;
 
     const usedIds = this.roomQuestionHistory.get(roomId) || [];
-    const question = this.questionBank.getRandomQuestion(room.category, room.difficulty, usedIds);
+
+    // Custom questions take priority over the built-in question bank
+    const customQuestions = this.customQuestionsMap.get(roomId);
+    let question: Question | null;
+    if (customQuestions && customQuestions.length > 0) {
+      const unused = customQuestions.filter(q => !usedIds.includes(q.id));
+      if (unused.length === 0) return null;
+      question = unused[Math.floor(Math.random() * unused.length)];
+    } else {
+      question = this.questionBank.getRandomQuestion(room.category, room.difficulty, usedIds);
+    }
     if (!question) return null;
 
     usedIds.push(question.id);
@@ -199,6 +219,7 @@ export class GameLogic {
   deleteRoom(roomId: string): void {
     this.rooms.delete(roomId);
     this.roomQuestionHistory.delete(roomId);
+    this.customQuestionsMap.delete(roomId);
   }
 
   getRoom(roomId: string): GameRoom | null {

@@ -11,7 +11,7 @@ interface SocketState {
   connect: () => void;
   disconnect: () => void;
   setPlayerName: (name: string) => void;
-  joinMatchmaking: (mode: 'pvp' | 'pve', category: string, difficulty: string) => void;
+  joinMatchmaking: (mode: 'pvp' | 'pve', category: string, difficulty: string, customCategoryId?: number) => void;
   leaveMatchmaking: () => void;
   answerQuestion: (questionId: string, selectedAnswer: number) => void;
   readyUp: () => void;
@@ -57,8 +57,8 @@ export const useSocket = create<SocketState>((set, get) => ({
     socketClient.emit('setPlayerName', name);
   },
 
-  joinMatchmaking: (mode, category, difficulty) => {
-    socketClient.emit('joinMatchmaking', { mode, category, difficulty });
+  joinMatchmaking: (mode, category, difficulty, customCategoryId) => {
+    socketClient.emit('joinMatchmaking', { mode, category, difficulty, customCategoryId });
   },
 
   leaveMatchmaking: () => {
