@@ -52,12 +52,29 @@ export function CustomCategoryEditor({ onClose, onCreated }: Props) {
     setCreatingCategory(true);
 
     const onCreatedCat = (cat: CustomCategory) => {
+      clearTimeout(timer);
       socketClient.off('customCategoryCreated', onCreatedCat);
+      socketClient.off('customCategoryError', onErr);
       setCategoryId(cat.id);
       setCreatingCategory(false);
       setStep('questions');
     };
+    const onErr = (msg: string) => {
+      clearTimeout(timer);
+      socketClient.off('customCategoryCreated', onCreatedCat);
+      socketClient.off('customCategoryError', onErr);
+      setInfoError(typeof msg === 'string' ? msg : 'Failed to create category. Please try again.');
+      setCreatingCategory(false);
+    };
+    const timer = setTimeout(() => {
+      socketClient.off('customCategoryCreated', onCreatedCat);
+      socketClient.off('customCategoryError', onErr);
+      setInfoError('Server timed out. Please try again.');
+      setCreatingCategory(false);
+    }, 8000);
+
     socketClient.on('customCategoryCreated', onCreatedCat);
+    socketClient.on('customCategoryError', onErr);
     socketClient.emit('createCustomCategory', { name: name.trim(), description: description.trim(), isPublic });
   };
 
@@ -78,13 +95,31 @@ export function CustomCategoryEditor({ onClose, onCreated }: Props) {
     setQError(null);
     setAddingQuestion(true);
 
+    const questionText = draft.question.trim();
     const onAdded = (q: CustomQuestion) => {
+      clearTimeout(qTimer);
       socketClient.off('customQuestionAdded', onAdded);
-      setAddedQuestions((prev) => [...prev, draft.question.trim()]);
+      socketClient.off('customQuestionError', onQErr);
+      setAddedQuestions((prev) => [...prev, questionText]);
       setDraft({ ...BLANK_QUESTION });
       setAddingQuestion(false);
     };
+    const onQErr = (msg: string) => {
+      clearTimeout(qTimer);
+      socketClient.off('customQuestionAdded', onAdded);
+      socketClient.off('customQuestionError', onQErr);
+      setQError(typeof msg === 'string' ? msg : 'Failed to add question. Please try again.');
+      setAddingQuestion(false);
+    };
+    const qTimer = setTimeout(() => {
+      socketClient.off('customQuestionAdded', onAdded);
+      socketClient.off('customQuestionError', onQErr);
+      setQError('Server timed out. Please try again.');
+      setAddingQuestion(false);
+    }, 8000);
+
     socketClient.on('customQuestionAdded', onAdded);
+    socketClient.on('customQuestionError', onQErr);
     socketClient.emit('addCustomQuestion', {
       categoryId,
       question: draft.question.trim(),

@@ -1,6 +1,6 @@
 # Trivia Masters
 
-A real-time multiplayer trivia battle game with PvP and PvE modes, full user authentication, achievement system, and player profiles.
+A real-time multiplayer trivia battle game with PvP and PvE modes, full user authentication, achievement system, player profiles, friends system, private matches, and community-created categories.
 
 ## Tech Stack
 
@@ -14,52 +14,82 @@ A real-time multiplayer trivia battle game with PvP and PvE modes, full user aut
 ```
 client/              # React SPA (Vite, port 5000 via proxy)
   src/
-    App.tsx          # Root: auth init, socket connect, global event listeners, AchievementToast
+    App.tsx          # Root: auth init, socket connect, global event listeners,
+                     # AchievementToast, MatchInviteToast
+                     # Persistent listeners: gameStarted, gameEnded, achievementUnlocked,
+                     #   privateRoomCreated, joinedPrivateRoom, matchInviteReceived,
+                     #   friendRequestReceived, friendOnline/Offline
     components/
-      GameLobby.tsx  # Main menu, auth button, profile button, PvP/PvE entry
-      Matchmaking.tsx # PvP lobby, category/difficulty select, ready-up flow
+      GameLobby.tsx  # Main menu — PvP/PvE/Community/Private/Tournament buttons,
+                     # auth + profile + friends buttons (badge on pending requests)
+      Matchmaking.tsx # PvP lobby + private room lobby (code display, copy, friend invite)
       TriviaGame.tsx  # Live game: timer, question, answer buttons, scoreboard
-      GameResults.tsx # End-of-game results with confetti, score count-up, correct answers, best streak
-      GameUI.tsx      # Phase router: menu → matchmaking → playing → results → tournament → profile
-      Leaderboard.tsx # Leaderboard REST API display
+      GameResults.tsx # End-of-game: confetti, score count-up, correct answers, best streak
+      GameUI.tsx      # Phase router: menu → matchmaking → playing → results →
+                     #   tournament → custom → profile overlay
+      Leaderboard.tsx # Global + Friends leaderboard tabs (REST API)
       CategorySelect.tsx # Static category showcase
       AuthModal.tsx   # Login/Register modal with tabs (Sprint 1)
-      AchievementToast.tsx # Real-time achievement popup toast, slide-in animation (Sprint 1)
+      AchievementToast.tsx # Real-time achievement popup, slide-in animation (Sprint 1)
       PlayerProfile.tsx    # Stats + achievement badges page (Sprint 1)
       Tournament.tsx  # Browse/create/join tournaments lobby (Sprint 2)
-      TournamentBracket.tsx # Bracket visualization + "Play Match" game-room bridge (Sprint 2)
+      TournamentBracket.tsx # Bracket visualization + "Play Match" bridge (Sprint 2)
+      FriendsPanel.tsx     # Slide-in panel: Search/Friends/Requests tabs (Sprint 3A)
+      PrivateMatchModal.tsx # Create/Join private room modal (Sprint 3B)
+      MatchInviteToast.tsx  # Incoming invite overlay, 30s auto-dismiss (Sprint 3B)
+      CustomCategoryBrowser.tsx # Full-page browser: Browse/Mine tabs, search,
+                                #   star rating, play, delete (Sprint 3C)
+      CustomCategoryEditor.tsx  # 2-step modal: create category → add questions (Sprint 3C)
     lib/
       socket.ts       # Raw socket.io-client + JWT handshake + reconnectWithToken()
                       # socketClient.on() stores listeners and re-attaches on reconnect
                       # Duplicate listener guard prevents double-registration
       stores/
-        useTrivia.tsx  # Zustand: game phase, question state, results (+ correctAnswersPerPlayer, maxStreakPerPlayer)
-        useSocket.tsx  # Zustand: socket actions — all handlers registered via socketClient.on()
+        useTrivia.tsx  # Zustand: game phase (GamePhase), question state, results
+        useSocket.tsx  # Zustand: socket actions — joinMatchmaking(mode,cat,diff,customCategoryId?)
         useAuth.ts     # Zustand: JWT auth state, login/register/logout + localStorage
-        useTournament.ts # Zustand: tournament state — browse, current, bracket matches, pending match
+        useTournament.ts # Zustand: tournament state — browse, current, bracket, pending match
+        useSocial.ts    # Zustand: friends list, pending requests, online status (Sprint 3A)
+        usePrivateMatch.ts # Zustand: incomingInvite state (Sprint 3B)
+        useCustomCategory.ts # Zustand: publicCategories, myCategories, searchResults (Sprint 3C)
 
 server/
   index.ts            # Express entry point, port 5000
-  routes.ts           # REST: /api/auth/*, /api/leaderboard, /api/player/:id/*, /api/tournaments/*
+  routes.ts           # REST: /api/auth/*, /api/leaderboard, /api/leaderboard?friendIds=,
+                      #   /api/player/:id/*, /api/tournaments/*
   gameServer.ts       # Socket.IO hub: JWT handshake, real-time events, achievement triggers
                       # getDbPlayerId(): resolves socket.id → "user_2" → "2" for DB writes
-                      # authToSocketId reverse map: authId → socket.id (for tournament notifications)
-                      # joinTournamentMatch: creates PvP room, auto-starts when both players join
-                      # finishGame enriched: correctAnswersPerPlayer + maxStreakPerPlayer in gameEnded
+                      # authToSocketId reverse map: authId → socket.id (tournament + invite)
+                      # customCategoryUserId(): socketToAuthId.get(id) || id (stable for auth users)
+                      # joinTournamentMatch: creates PvP room, auto-starts when both join
+                      # joinMatchmaking: now accepts customCategoryId → fetches + loads questions
+                      # finishGame: correctAnswersPerPlayer + maxStreakPerPlayer in gameEnded
                       # Tournament bridge: updateMatchResult + tournamentUpdated after match ends
+                      # Private rooms: privateRoomCodes Map, createPrivateRoom, joinPrivateRoom,
+                      #   inviteToMatch — code cleaned up on last player disconnect
+                      # Social handlers: searchPlayers, sendFriendRequest, respondToFriendRequest,
+                      #   getFriends, getFriendRequests, online/offline notifications
+                      # Custom category handlers: createCustomCategory, addCustomQuestion,
+                      #   getPublicCategories, getUserCategories, deleteCustomCategory, rateCategory
   gameLogic.ts        # In-memory rooms, answer tracking, maxStreakPerPlayer tracking
+                      # customQuestionsMap: Map<roomId, Question[]> — per-room custom Q bank
+                      # setCustomQuestions(roomId, questions, maxQuestionsOverride?) — loaded pre-game
+                      # nextQuestion(): custom questions take priority over built-in bank
+                      # deleteRoom(): cleans up customQuestionsMap entry
   matchmaking.ts      # ELO queue, skill-based matching, tier system
   questionBank.ts     # 270 questions (6 categories × 3 difficulties × 15 questions)
   storage.ts          # Drizzle ORM + PostgreSQL (pg Pool driver) + in-memory fallback
   authService.ts      # JWT signToken/verifyToken + bcrypt register/login/getUserById
   achievementService.ts # 10 achievements — checkAndAwardAchievements() uses maxStreakPerPlayer
   tournamentService.ts # Tournament CRUD + bracket gen + getMatch/updateMatchRoom/getPendingMatches
-  socialService.ts    # Profiles, friends, messages, invites (backend built, no UI yet)
-  customCategoryService.ts # UGC categories + ratings (fully wired)
+  socialService.ts    # Profiles, friends, messages, invites — full CRUD
+  customCategoryService.ts # UGC categories + ratings — full CRUD, public/private, search
 
 shared/
   schema.ts           # Drizzle schema (14 tables) + shared TypeScript interfaces
-                      # GameRoom includes maxStreakPerPlayer + tournamentMatchId?: number
+                      # GameRoom: maxStreakPerPlayer, tournamentMatchId?, isPrivate?,
+                      #   privateCode?, customCategoryId?
+                      # GamePhase: 'menu'|'matchmaking'|'playing'|'results'|'tournament'|'custom'
 ```
 
 ## Database (PostgreSQL — 14 tables)
@@ -72,6 +102,12 @@ Key tables:
 - `game_stats` — playerId (unique text), totalGames, wins, losses, averageScore, bestStreak, rating, tier
 - `leaderboards` — playerId (unique text), playerName, totalScore (accumulated), gamesWon, bestStreak, rank
 - `player_achievements` — playerId, achievementId, progress, maxProgress, unlocked, unlockedAt
+- `player_profiles` — playerId, displayName, bio, avatar, isPublic, favoriteCategories
+- `friendships` — requesterId, recipientId, status (pending/accepted/rejected/blocked)
+- `custom_categories` — id, name, description, createdBy (auth: "user_N", guest: socket.id), isPublic, questionCount, plays, rating
+- `custom_questions` — id, categoryId, question, option1-4, correctAnswer, difficulty, explanation
+- `category_ratings` — categoryId, playerId, rating (1-5), review
+- `tournaments`, `tournament_participants`, `tournament_matches`, `player_messages`, `game_invites`
 
 ## Auth System (Sprint 1)
 
@@ -89,7 +125,23 @@ Critical pattern — handlers must survive socket reconnects after login:
 - On reconnect, `reconnectWithToken()` creates new socket → all `this.listeners` are re-attached
 - Duplicate guard: `socketClient.on()` checks `existing.includes(callback)` before pushing
 - `useSocket.connect()` uses `socketClient.on()` — NOT `socket.on()` directly
-- `useSocket.isConnected` and `playerId` update correctly after every reconnect
+- Component-level one-shot handlers (editor, modals) use `socketClient.on/off` in useEffect with cleanup
+
+## Custom Category Ownership Pattern (Sprint 3C)
+
+Critical pattern — auth users must retain ownership of categories across reconnects:
+- `customCategoryUserId()` = `this.socketToAuthId.get(socket.id) || socket.id`
+- Auth users get `"user_N"` — stable identifier that survives socket reconnects
+- Guests get `socket.id` — volatile, but acceptable since guests have no persistent identity
+- Used in: `createCustomCategory`, `getUserCategories`, `updateCustomCategory`, `deleteCustomCategory`, `rateCategory`
+
+## Private Room Pattern (Sprint 3B)
+
+- **Code**: 6-char, charset `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no ambiguous I/O/0/1)
+- **Server**: `privateRoomCodes: Map<string, string>` (code→roomId); cleanup on last player disconnect
+- **Flow**: `createPrivateRoom` → `roomUpdated` + `privateRoomCreated{code}` → App.tsx → `setPhase('matchmaking')`
+- **Join**: `joinPrivateRoom{code}` → 5-guard validation → `roomUpdated` to room + `joinedPrivateRoom` to joiner
+- **Invite**: `inviteToMatch{targetPlayerId, roomCode}` → `authToSocketId` lookup → `matchInviteReceived` toast
 
 ## Achievement System (Sprint 1)
 
@@ -106,10 +158,22 @@ Triggered in `gameServer.ts → finishGame()`, persisted to `player_achievements
 ## Game Flow
 
 1. **Lobby** (menu) — name input or account login, mode selection
-2. **Matchmaking** — PvP queue with ELO-based pairing; PvE instant start
-3. **Playing** — 10 questions, 30s timer each, real-time scoring + streaks
+2. **Matchmaking** — PvP queue with ELO-based pairing; PvE instant start; private room code display
+3. **Playing** — up to 10 questions, 30s timer each, real-time scoring + streaks
 4. **Results** — final scoreboard, winner, ELO update, achievements triggered
 5. **Profile** (overlay) — stats grid, achievement badges, progress bars
+6. **Community** ('custom' phase) — browse/create/play community category sets
+7. **Tournament** — bracket-style elimination competitions
+
+## Custom Category Play Flow
+
+1. User clicks "Community Trivia" → `setPhase('custom')` → `CustomCategoryBrowser`
+2. Browse tab fetches public categories via `getPublicCategories` socket emit
+3. User clicks "Play" on a card → `joinMatchmaking('pve', 'custom', 'mixed', categoryId)`
+4. Server fetches questions via `getCategory(id, includeQuestions: true)`, maps to `Question[]`
+5. `setCustomQuestions(roomId, questions, min(count, 10))` pre-loads into `gameLogic`
+6. `nextQuestion()` uses custom pool (random from unused) instead of built-in bank
+7. After 800ms, client transitions to `setPhase('playing')`
 
 ## Scoring
 
@@ -123,8 +187,10 @@ Triggered in `gameServer.ts → finishGame()`, persisted to `player_achievements
 - Leaderboard shows `[]` when no authenticated players have completed games (guest stats not persisted)
 - AI opponent answers with 1–4s delay, adaptive accuracy based on human performance
 - Question IDs are deterministic (`category_difficulty_question[0:30]`) — no dedup issues across sessions
+- Custom question IDs use `custom_${dbId}` format — guaranteed unique per room via `usedIds` filter
 - `correctAnswersPerPlayer` + `fastestAnswerMsPerPlayer` + `maxStreakPerPlayer` tracked per room for achievements
 - In production, `CORS origin` is locked to `CLIENT_ORIGIN` env var
+- `customCategoryError` and `customQuestionError` are named events (not generic `error`) to avoid cross-handler pollution
 
 ## Sprint History
 
@@ -153,9 +219,34 @@ Enhanced `GameResults` (confetti, score count-up, correct-answer count, accuracy
 4. **`getTournaments` socket returned only `registration`-status** — changed to `getAllTournaments()` for consistency with REST.
 5. Dead code (`clearTournament`/`currentTournament` unused imports) removed from `GameUI.tsx`.
 
-### Sprint 3 — Social Layer + Community 🔜
-- **Friends system** — search/add/remove, online status, invite to match (`socialService.ts` backend ready)
-- **Private matches** — create room with 6-char code, join by code, invite via friend list
-- **Custom categories UI** — browse/create/play community question sets (`customCategoryService.ts` backend ready)
-- **Tournament UX polish** — real player names in bracket, opponent-joined notification, rematch flow, winner podium
-- **Mobile layout pass** — responsive breakpoints across all screens
+### Sprint 3 — Social Layer + Community ✅ (Groups A–C)
+
+#### Group A — Friends System ✅
+Friends list with 3-tab panel (Search/Friends/Requests), friend request send/accept/reject, online presence (green dot + notification), friends leaderboard tab, friends badge in lobby header, profile auto-creation on auth socket connect. New store: `useSocial`. New component: `FriendsPanel`.
+
+**Group A Bugs Fixed:**
+1. Profile not created on first login → auto-created in `handleConnection` on auth socket connect
+2. Friends leaderboard required separate REST endpoint → added `GET /api/leaderboard?friendIds=` query param
+
+#### Group B — Private Matches ✅
+6-char room code (unambiguous charset), create/join private room, invite friend from online list, `MatchInviteToast` (30s auto-dismiss, Accept/Decline), private room code display + copy button in Matchmaking lobby, cleanup on last player disconnect. New stores: `usePrivateMatch`. New components: `PrivateMatchModal`, `MatchInviteToast`.
+
+**Group B Bugs Fixed:**
+1. `privateCode` captured before room deletion in disconnect handler (prevents undefined reference)
+2. Private room `maxPlayers` set to 2 explicitly (PvP default was 4)
+3. Ready button only appears when room is full (prevents premature ready)
+
+#### Group C — Custom Categories UI ✅
+Full browse/create/play flow for community question sets. Browser page (Browse/Mine tabs, debounced search, star ratings, play/delete), Editor modal (2-step: create info → add up to 20 questions), play via PvE with custom question bank (min/10 cap, exhaustion detection). New stores: `useCustomCategory`. New components: `CustomCategoryBrowser`, `CustomCategoryEditor`. New phase: `'custom'` in `GamePhase`. `joinMatchmaking` extended with optional `customCategoryId`.
+
+**Group C Bugs Fixed:**
+1. **Critical**: All 5 custom category socket handlers used `socket.id` as owner ID → auth users lost categories on reconnect. Fixed: `customCategoryUserId()` helper uses `socketToAuthId.get(socket.id) || socket.id`
+2. **Performance**: Double `fetchPublic()` on mount (mount effect + tab effect both fired). Fixed: removed redundant call from mount effect; tab effect handles initial load
+3. **UX**: Editor spinners stuck permanently if server emitted error (no error recovery). Fixed: named error events (`customCategoryError`, `customQuestionError`) + 8s timeout resets loading state
+4. **Cleanup**: `setLoading` destructured but unused in browser component → removed
+
+### Sprint 3 Group D — Tournament UX Polish 🔜
+- Real player names in bracket (resolve DB player ID → username)
+- Rematch flow after PvP game
+- In-game "opponent joined" notification before `gameStarted`
+- Mobile layout responsive pass

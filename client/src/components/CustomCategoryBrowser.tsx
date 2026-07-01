@@ -20,7 +20,6 @@ export function CustomCategoryBrowser() {
     fetchPublic, fetchMine, search,
     deleteCategory, rate,
     setPublic, setMine, setSearch, removeFromMine,
-    setLoading,
   } = useCustomCategory();
 
   const [tab, setTab] = useState<Tab>('browse');
@@ -31,7 +30,7 @@ export function CustomCategoryBrowser() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const searchDebounce = useRef<NodeJS.Timeout | null>(null);
 
-  // Mount: register socket listeners + fetch initial data
+  // Mount: register socket listeners only (tab effect handles initial fetch)
   useEffect(() => {
     const onPublic = (cats: CustomCategory[]) => setPublic(cats);
     const onMine = (cats: CustomCategory[]) => setMine(cats);
@@ -46,8 +45,6 @@ export function CustomCategoryBrowser() {
     socketClient.on('searchCategoriesResults', onSearch);
     socketClient.on('customCategoryDeleted', onDeleted);
 
-    fetchPublic();
-
     return () => {
       socketClient.off('publicCategoriesData', onPublic);
       socketClient.off('userCategoriesData', onMine);
@@ -56,7 +53,7 @@ export function CustomCategoryBrowser() {
     };
   }, []);
 
-  // Tab switch → fetch
+  // Tab switch → fetch (also fires on mount for initial browse load)
   useEffect(() => {
     if (tab === 'mine') fetchMine();
     else fetchPublic();

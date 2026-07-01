@@ -556,14 +556,18 @@ export class GameServer {
       });
 
       // CUSTOM CATEGORIES
+      // Resolve a stable user identifier: auth users get "user_N" (survives reconnect);
+      // guests fall back to socket.id (volatile but fine — no persistent identity).
+      const customCategoryUserId = () => this.socketToAuthId.get(socket.id) || socket.id;
+
       socket.on('createCustomCategory', async ({ name, description, isPublic }) => {
-        const cat = await this.customCategories.createCategory(name, description, socket.id, isPublic);
-        cat ? socket.emit('customCategoryCreated', cat) : socket.emit('error', 'Failed to create category');
+        const cat = await this.customCategories.createCategory(name, description, customCategoryUserId(), isPublic);
+        cat ? socket.emit('customCategoryCreated', cat) : socket.emit('customCategoryError', 'Failed to create category');
       });
 
       socket.on('addCustomQuestion', async ({ categoryId, question, options, correctAnswer, difficulty, explanation }) => {
         const q = await this.customCategories.addQuestion(categoryId, question, options, correctAnswer, difficulty, explanation);
-        q ? socket.emit('customQuestionAdded', q) : socket.emit('error', 'Failed to add question');
+        q ? socket.emit('customQuestionAdded', q) : socket.emit('customQuestionError', 'Failed to add question');
       });
 
       socket.on('getCustomCategory', async ({ categoryId, includeQuestions }) => {
@@ -575,21 +579,21 @@ export class GameServer {
       });
 
       socket.on('getUserCategories', async () => {
-        socket.emit('userCategoriesData', await this.customCategories.getUserCategories(socket.id));
+        socket.emit('userCategoriesData', await this.customCategories.getUserCategories(customCategoryUserId()));
       });
 
       socket.on('updateCustomCategory', async ({ categoryId, updates }) => {
-        const ok = await this.customCategories.updateCategory(categoryId, socket.id, updates);
+        const ok = await this.customCategories.updateCategory(categoryId, customCategoryUserId(), updates);
         ok ? socket.emit('customCategoryUpdated', { categoryId, updates }) : socket.emit('error', 'Failed to update');
       });
 
       socket.on('deleteCustomCategory', async ({ categoryId }) => {
-        const ok = await this.customCategories.deleteCategory(categoryId, socket.id);
+        const ok = await this.customCategories.deleteCategory(categoryId, customCategoryUserId());
         ok ? socket.emit('customCategoryDeleted', { categoryId }) : socket.emit('error', 'Failed to delete');
       });
 
       socket.on('rateCategory', async ({ categoryId, rating, review }) => {
-        const ok = await this.customCategories.rateCategory(categoryId, socket.id, rating, review);
+        const ok = await this.customCategories.rateCategory(categoryId, customCategoryUserId(), rating, review);
         ok ? socket.emit('categoryRated', { categoryId, rating }) : socket.emit('error', 'Failed to rate');
       });
 
