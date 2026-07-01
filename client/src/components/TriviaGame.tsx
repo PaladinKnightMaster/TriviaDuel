@@ -175,7 +175,7 @@ export function TriviaGame() {
           </div>
 
           <div className="flex gap-2">
-            <Badge className="bg-indigo-800 text-indigo-200 border-indigo-700 text-xs">
+            <Badge className="bg-indigo-800 text-indigo-200 border-indigo-700 text-xs hidden sm:inline-flex">
               {currentQuestion.category.replace('_', ' ').toUpperCase()}
             </Badge>
             <Badge className={`text-xs ${

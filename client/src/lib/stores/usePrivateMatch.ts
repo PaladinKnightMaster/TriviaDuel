@@ -3,6 +3,7 @@ import { create } from 'zustand';
 export interface MatchInvite {
   fromName: string;
   roomCode: string;
+  isRematch?: boolean;
 }
 
 interface PrivateMatchState {

@@ -743,6 +743,42 @@ export class GameServer {
         }
       });
 
+      // ── REMATCH ───────────────────────────────────────────────────────────────
+      // Creates a new private room and sends an invite to the opponent.
+      // Reuses privateRoomCreated so App.tsx handles navigation identically.
+      socket.on('requestRematch', ({ opponentId }: { opponentId: string }) => {
+        const opponentSocket = this.io.sockets.sockets.get(opponentId);
+        if (!opponentSocket) {
+          socket.emit('rematchError', 'Opponent has already left.');
+          return;
+        }
+
+        const myName = this.playerNames.get(socket.id) || `Player${socket.id.substr(0, 4)}`;
+        const code = this.generatePrivateCode();
+        const roomId = `private_${code}`;
+
+        const room = this.gameLogic.createRoom(roomId, 'pvp', 'general', 'medium');
+        room.maxPlayers = 2;
+        room.isPrivate = true;
+        room.privateCode = code;
+
+        this.privateRoomCodes.set(code, roomId);
+        this.gameLogic.addPlayerToRoom(roomId, {
+          id: socket.id, name: myName, score: 0, streak: 0, isReady: false,
+        });
+
+        this.playerRooms.set(socket.id, roomId);
+        socket.join(roomId);
+
+        const updatedRoom = this.gameLogic.getRoom(roomId)!;
+        this.io.to(roomId).emit('roomUpdated', updatedRoom);
+        this.io.to(roomId).emit('playersUpdated', updatedRoom.players);
+        // Reuse privateRoomCreated — App.tsx already navigates to matchmaking on this event
+        socket.emit('privateRoomCreated', { code, room: updatedRoom });
+        // Notify opponent with the isRematch flag so the toast can say "Rematch!"
+        opponentSocket.emit('matchInviteReceived', { fromName: myName, roomCode: code, isRematch: true });
+      });
+
       // DISCONNECT
       socket.on('disconnect', () => {
         console.log(`Player disconnected: ${socket.id}`);

@@ -13,6 +13,7 @@ interface GameResultsProps {
   onPlayAgain: () => void;
   onMainMenu: () => void;
   onBackToBracket?: () => void;
+  onRematch?: () => void;
 }
 
 const RANK_BADGES = ['🥇', '🥈', '🥉', '4️⃣'];
@@ -128,11 +129,15 @@ export default function GameResults({
   onPlayAgain,
   onMainMenu,
   onBackToBracket,
+  onRematch,
 }: GameResultsProps) {
   const sorted = [...finalScores].sort((a, b) => b.score - a.score);
   const maxScore = sorted[0]?.score || 1;
   const myResult = sorted.find(p => p.id === currentPlayerId);
   const myIndex = sorted.findIndex(p => p.id === currentPlayerId);
+
+  // Show Rematch button only for head-to-head PvP games (no tournament, no AI opponents)
+  const canRematch = !tournamentMatchId && finalScores.some(p => !p.id.startsWith('ai_') && p.id !== currentPlayerId);
   const isWinner = winner?.id === currentPlayerId;
 
   const myCorrect = correctAnswersPerPlayer[currentPlayerId] ?? 0;
@@ -211,7 +216,7 @@ export default function GameResults({
         {myResult && (
           <div className="bg-white/5 rounded-xl p-4 mb-4 border border-white/10">
             <h3 className="text-white/50 text-xs uppercase tracking-widest text-center mb-3">Your Performance</h3>
-            <div className="grid grid-cols-4 gap-2 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
               <div className="bg-white/5 rounded-lg p-2">
                 <div className="text-xl font-bold text-white tabular-nums">
                   {myAnimatedScore.toLocaleString()}
@@ -242,13 +247,20 @@ export default function GameResults({
         )}
 
         {/* Buttons */}
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           {tournamentMatchId && onBackToBracket ? (
             <button
               onClick={onBackToBracket}
               className="flex-1 py-3 px-4 bg-yellow-600 hover:bg-yellow-500 text-white font-semibold rounded-xl transition-colors text-sm shadow-lg shadow-yellow-900/50"
             >
               🏆 View Bracket
+            </button>
+          ) : canRematch && onRematch ? (
+            <button
+              onClick={onRematch}
+              className="flex-1 py-3 px-4 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-xl transition-colors text-sm shadow-lg shadow-red-900/50"
+            >
+              ⚔️ Rematch
             </button>
           ) : (
             <button

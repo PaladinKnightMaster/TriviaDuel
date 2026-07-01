@@ -39,9 +39,12 @@ export function MatchInviteToast() {
           <Swords className="w-5 h-5 text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-white font-semibold text-sm">Private Match Invite!</p>
+          <p className="text-white font-semibold text-sm">
+            {incomingInvite.isRematch ? '⚔️ Rematch Request!' : 'Private Match Invite!'}
+          </p>
           <p className="text-gray-300 text-sm mt-0.5">
-            <span className="text-yellow-300 font-semibold">{incomingInvite.fromName}</span> invited you to a match
+            <span className="text-yellow-300 font-semibold">{incomingInvite.fromName}</span>
+            {incomingInvite.isRematch ? ' wants a rematch' : ' invited you to a match'}
           </p>
           <div className="flex gap-2 mt-3">
             <button

@@ -245,8 +245,25 @@ Full browse/create/play flow for community question sets. Browser page (Browse/M
 3. **UX**: Editor spinners stuck permanently if server emitted error (no error recovery). Fixed: named error events (`customCategoryError`, `customQuestionError`) + 8s timeout resets loading state
 4. **Cleanup**: `setLoading` destructured but unused in browser component → removed
 
-### Sprint 3 Group D — Tournament UX Polish 🔜
-- Real player names in bracket (resolve DB player ID → username)
-- Rematch flow after PvP game
-- In-game "opponent joined" notification before `gameStarted`
-- Mobile layout responsive pass
+### Sprint 3 Group D — Tournament UX Polish ✅
+
+#### D1 — Real player names in tournament bracket ✅
+`TournamentBracket.tsx` builds a `playerNames: Record<string, string>` via `useMemo` from `currentTournament.participants` (which stores `playerId → playerName` at join time). `PlayerSlot` and the winner podium now resolve the actual username instead of raw IDs. Fallback: `Player #${numericId}` for auth users when name missing; `Player #XXXXX` for guests.
+
+**D1 Note**: tournament `participantId` is `dbPlayerId || socket.id` → "2" (numeric string) for auth users, socket.id for guests. Both match the IDs stored in `tournament_matches.player1Id/player2Id`. 
+
+#### D2 — Rematch flow after PvP game ✅
+New `requestRematch` handler in `gameServer.ts`: creates a private room, adds requester, emits `privateRoomCreated` to requester (App.tsx already navigates to matchmaking on this event), emits `matchInviteReceived{isRematch: true}` to opponent via their socket.
+
+Client: `GameResults.tsx` detects PvP games (`!tournamentMatchId && finalScores.some(non-AI, non-self player)`) and shows ⚔️ Rematch button. `GameUI.tsx` handles `onRematch` callback by emitting `requestRematch{opponentId}`. `MatchInviteToast.tsx` and `usePrivateMatch.ts` updated to show "⚔️ Rematch Request!" when `isRematch: true`.
+
+#### D3 — Opponent-joined notification ✅
+`Matchmaking.tsx` tracks `currentRoom.players.length` changes via `useRef(prevPlayerCount)`. When count goes 1→2 in a **public** (non-private) PvP room, shows an `opponentJoinedName` banner: "⚡ {name} joined! Get ready..." with 3.5s auto-dismiss. Client-only — no new server events required.
+
+#### D4 — Mobile layout responsive pass ✅
+- `TriviaGame.tsx`: category badge hidden on mobile (`hidden sm:inline-flex`), difficulty badge always visible — prevents header overflow on small screens
+- `GameResults.tsx`: Your Performance stats grid `grid-cols-2 sm:grid-cols-4` (2 columns on mobile); action buttons `flex-col sm:flex-row` (stack on mobile)
+- `Matchmaking.tsx`: opponent-joined banner is compact and mobile-friendly by design
+
+**Group D Bugs Found During Audit:**
+None beyond scope — all four features implemented cleanly, TypeScript: 0 errors.

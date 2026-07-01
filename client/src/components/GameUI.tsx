@@ -30,6 +30,14 @@ export function GameUI() {
     setPhase('tournament');
   };
 
+  const handleRematch = () => {
+    if (!gameResults) return;
+    const myId = socketClient.id || '';
+    const opponent = gameResults.finalScores.find(p => p.id !== myId && !p.id.startsWith('ai_'));
+    if (!opponent) return;
+    socketClient.emit('requestRematch', { opponentId: opponent.id });
+  };
+
   // Profile overlay takes priority
   if (showProfile) {
     return <PlayerProfile onBack={() => setShowProfile(false)} />;
@@ -60,6 +68,7 @@ export function GameUI() {
             onPlayAgain={handlePlayAgain}
             onMainMenu={handleMainMenu}
             onBackToBracket={gameResults.tournamentMatchId ? handleBackToBracket : undefined}
+            onRematch={handleRematch}
           />
         );
       }

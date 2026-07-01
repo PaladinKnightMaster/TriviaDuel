@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -18,6 +18,8 @@ export function Matchmaking() {
   const [copied, setCopied] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState('');
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
+  const [opponentJoinedName, setOpponentJoinedName] = useState<string | null>(null);
+  const prevPlayerCount = useRef(0);
 
   const { currentRoom, joinMatchmaking, leaveMatchmaking, readyUp, setPlayerName } = useSocket();
   const { setPhase } = useTrivia();
@@ -34,6 +36,24 @@ export function Matchmaking() {
     }
     return () => clearInterval(interval);
   }, [isSearching, currentRoom]);
+
+  // Detect when a second player joins a public PvP room (client-side — no extra server event needed)
+  useEffect(() => {
+    const count = currentRoom?.players.length ?? 0;
+    const prev = prevPlayerCount.current;
+    prevPlayerCount.current = count;
+    if (prev === 1 && count === 2 && !currentRoom?.isPrivate) {
+      const opponent = currentRoom?.players.find(p => p.id !== socketClient.id);
+      if (opponent) setOpponentJoinedName(opponent.name);
+    }
+  }, [currentRoom?.players.length, currentRoom?.isPrivate]);
+
+  // Auto-dismiss opponent-joined banner after 3.5 s
+  useEffect(() => {
+    if (!opponentJoinedName) return;
+    const t = setTimeout(() => setOpponentJoinedName(null), 3500);
+    return () => clearTimeout(t);
+  }, [opponentJoinedName]);
 
   // Listen for invite feedback
   useEffect(() => {
@@ -258,6 +278,15 @@ export function Matchmaking() {
                       Waiting for opponent to join...
                     </p>
                   )}
+                </div>
+              )}
+
+              {/* Opponent joined banner (public PvP only, auto-dismisses) */}
+              {opponentJoinedName && !currentRoom.isPrivate && (
+                <div className="bg-green-500/15 border border-green-400/40 rounded-xl p-3 text-center animate-pulse">
+                  <p className="text-green-300 font-semibold text-sm">
+                    ⚡ {opponentJoinedName} joined! Get ready...
+                  </p>
                 </div>
               )}
 

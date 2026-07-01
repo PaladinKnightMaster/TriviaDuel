@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useTournament } from '../lib/stores/useTournament';
 import { useTrivia } from '../lib/stores/useTrivia';
 import { useSocket } from '../lib/stores/useSocket';
@@ -35,6 +35,15 @@ const STATUS_STYLES = {
 export function TournamentBracket({ onBack, onLeave }: Props) {
   const { currentTournament, bracketMatches, setBracketMatches, joinTournamentMatch, refreshBracket } = useTournament();
   const { setPhase } = useTrivia();
+
+  // Build playerId → displayName map from tournament participants
+  const playerNames = useMemo<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const p of currentTournament?.participants ?? []) {
+      map[p.playerId] = p.playerName;
+    }
+    return map;
+  }, [currentTournament?.participants]);
 
   useEffect(() => {
     if (!currentTournament) return;
@@ -121,7 +130,7 @@ export function TournamentBracket({ onBack, onLeave }: Props) {
             <div className="text-5xl mb-2">🏆</div>
             <h2 className="text-white font-bold text-xl">Tournament Complete!</h2>
             <p className="text-amber-300 text-sm mt-1">
-              Winner ID: {currentTournament.winnerId}
+              🏅 {playerNames[currentTournament.winnerId] || currentTournament.winnerId}
             </p>
           </div>
         )}
@@ -155,6 +164,7 @@ export function TournamentBracket({ onBack, onLeave }: Props) {
                     <MatchCard
                       key={match.id}
                       match={match}
+                      playerNames={playerNames}
                       onPlay={() => {
                         joinTournamentMatch(match.id);
                       }}
@@ -191,7 +201,7 @@ export function TournamentBracket({ onBack, onLeave }: Props) {
   );
 }
 
-function MatchCard({ match, onPlay }: { match: TournamentMatch; onPlay: () => void }) {
+function MatchCard({ match, playerNames, onPlay }: { match: TournamentMatch; playerNames: Record<string, string>; onPlay: () => void }) {
   const style = STATUS_STYLES[match.status];
   const isPending = match.status === 'pending';
   const isInProgress = match.status === 'in_progress';
@@ -213,6 +223,7 @@ function MatchCard({ match, onPlay }: { match: TournamentMatch; onPlay: () => vo
           isWinner={isDone && match.winnerId === match.player1Id}
           isLoser={isDone && match.winnerId !== match.player1Id && !!match.player1Id}
           isDone={isDone}
+          playerNames={playerNames}
         />
         <div className="flex items-center gap-2">
           <div className="flex-1 h-px bg-white/10" />
@@ -225,6 +236,7 @@ function MatchCard({ match, onPlay }: { match: TournamentMatch; onPlay: () => vo
           isWinner={isDone && match.winnerId === match.player2Id}
           isLoser={isDone && match.winnerId !== match.player2Id && !!match.player2Id}
           isDone={isDone}
+          playerNames={playerNames}
         />
       </div>
 
@@ -258,11 +270,14 @@ function MatchCard({ match, onPlay }: { match: TournamentMatch; onPlay: () => vo
 }
 
 function PlayerSlot({
-  id, score, isWinner, isLoser, isDone,
+  id, score, isWinner, isLoser, isDone, playerNames,
 }: {
   id?: string; score: number; isWinner: boolean; isLoser: boolean; isDone: boolean;
+  playerNames: Record<string, string>;
 }) {
-  const displayName = id ? `Player #${id.slice(0, 6)}` : <span className="italic text-white/25">TBD</span>;
+  const displayName = id
+    ? (playerNames[id] ?? (id.startsWith('user_') ? `Player #${id.replace('user_', '')}` : `Player #${id.slice(0, 5)}`))
+    : <span className="italic text-white/25">TBD</span>;
   return (
     <div className={`flex items-center justify-between px-2 py-1 rounded-lg ${
       isWinner ? 'bg-green-400/15' : isLoser ? 'bg-white/5 opacity-50' : 'bg-white/5'
