@@ -13,7 +13,7 @@ interface GameResultsProps {
   onPlayAgain: () => void;
   onMainMenu: () => void;
   onBackToBracket?: () => void;
-  onRematch?: () => void;
+  onRematch?: (opponentId: string) => void;
 }
 
 const RANK_BADGES = ['🥇', '🥈', '🥉', '4️⃣'];
@@ -138,6 +138,8 @@ export default function GameResults({
 
   // Show Rematch button only for head-to-head PvP games (no tournament, no AI opponents)
   const canRematch = !tournamentMatchId && finalScores.some(p => !p.id.startsWith('ai_') && p.id !== currentPlayerId);
+  // Compute opponent ID at render time (consistent with currentPlayerId, avoids stale socket.id on click)
+  const opponentId = finalScores.find(p => !p.id.startsWith('ai_') && p.id !== currentPlayerId)?.id ?? '';
   const isWinner = winner?.id === currentPlayerId;
 
   const myCorrect = correctAnswersPerPlayer[currentPlayerId] ?? 0;
@@ -257,7 +259,7 @@ export default function GameResults({
             </button>
           ) : canRematch && onRematch ? (
             <button
-              onClick={onRematch}
+              onClick={() => onRematch(opponentId)}
               className="flex-1 py-3 px-4 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-xl transition-colors text-sm shadow-lg shadow-red-900/50"
             >
               ⚔️ Rematch

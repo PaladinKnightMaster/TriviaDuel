@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTrivia } from '../lib/stores/useTrivia';
 import { useSocket } from '../lib/stores/useSocket';
 import { useTournament } from '../lib/stores/useTournament';
@@ -15,6 +15,17 @@ export function GameUI() {
   const { phase, gameResults, resetGame, setPhase } = useTrivia();
   const { } = useSocket(); // keep import live for side-effects
   const [showProfile, setShowProfile] = useState(false);
+  const [rematchError, setRematchError] = useState<string | null>(null);
+
+  // BUG 1 fix: handle rematchError (opponent already left) — server emits this event
+  useEffect(() => {
+    const onRematchError = (msg: string) => {
+      setRematchError(msg);
+      setTimeout(() => setRematchError(null), 4000);
+    };
+    socketClient.on('rematchError', onRematchError);
+    return () => socketClient.off('rematchError', onRematchError);
+  }, []);
 
   const handlePlayAgain = () => {
     socketClient.emit('leaveMatchmaking');
@@ -30,12 +41,15 @@ export function GameUI() {
     setPhase('tournament');
   };
 
-  const handleRematch = () => {
-    if (!gameResults) return;
-    const myId = socketClient.id || '';
-    const opponent = gameResults.finalScores.find(p => p.id !== myId && !p.id.startsWith('ai_'));
-    if (!opponent) return;
-    socketClient.emit('requestRematch', { opponentId: opponent.id });
+  // BUGs 3 & 4 fix: opponentId computed at render time in GameResults (no stale socket.id);
+  // category/difficulty preserved from original game so rematch plays same settings
+  const handleRematch = (opponentId: string) => {
+    if (!gameResults || !opponentId) return;
+    socketClient.emit('requestRematch', {
+      opponentId,
+      category: gameResults.category || 'general',
+      difficulty: gameResults.difficulty || 'medium',
+    });
   };
 
   // Profile overlay takes priority
@@ -57,19 +71,26 @@ export function GameUI() {
     case 'results':
       if (gameResults) {
         return (
-          <GameResults
-            finalScores={gameResults.finalScores}
-            winner={gameResults.winner}
-            totalQuestions={gameResults.totalQuestions}
-            currentPlayerId={socketClient.id || ''}
-            correctAnswersPerPlayer={gameResults.correctAnswersPerPlayer}
-            maxStreakPerPlayer={gameResults.maxStreakPerPlayer}
-            tournamentMatchId={gameResults.tournamentMatchId}
-            onPlayAgain={handlePlayAgain}
-            onMainMenu={handleMainMenu}
-            onBackToBracket={gameResults.tournamentMatchId ? handleBackToBracket : undefined}
-            onRematch={handleRematch}
-          />
+          <>
+            {rematchError && (
+              <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-900/90 border border-red-500/50 text-red-200 text-sm px-4 py-2.5 rounded-xl shadow-xl pointer-events-none">
+                ⚠️ {rematchError}
+              </div>
+            )}
+            <GameResults
+              finalScores={gameResults.finalScores}
+              winner={gameResults.winner}
+              totalQuestions={gameResults.totalQuestions}
+              currentPlayerId={socketClient.id || ''}
+              correctAnswersPerPlayer={gameResults.correctAnswersPerPlayer}
+              maxStreakPerPlayer={gameResults.maxStreakPerPlayer}
+              tournamentMatchId={gameResults.tournamentMatchId}
+              onPlayAgain={handlePlayAgain}
+              onMainMenu={handleMainMenu}
+              onBackToBracket={gameResults.tournamentMatchId ? handleBackToBracket : undefined}
+              onRematch={handleRematch}
+            />
+          </>
         );
       }
       return (

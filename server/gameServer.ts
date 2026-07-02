@@ -227,6 +227,8 @@ export class GameServer {
       correctAnswersPerPlayer: finalRoom.correctAnswersPerPlayer,
       maxStreakPerPlayer: finalRoom.maxStreakPerPlayer,
       tournamentMatchId: finalRoom.tournamentMatchId,
+      category: finalRoom.category,
+      difficulty: finalRoom.difficulty,
     });
 
     console.log(`Game finished in room ${roomId}. Winner: ${winner?.name} (${winner?.score} pts)`);
@@ -746,7 +748,7 @@ export class GameServer {
       // ── REMATCH ───────────────────────────────────────────────────────────────
       // Creates a new private room and sends an invite to the opponent.
       // Reuses privateRoomCreated so App.tsx handles navigation identically.
-      socket.on('requestRematch', ({ opponentId }: { opponentId: string }) => {
+      socket.on('requestRematch', ({ opponentId, category, difficulty }: { opponentId: string; category?: string; difficulty?: string }) => {
         const opponentSocket = this.io.sockets.sockets.get(opponentId);
         if (!opponentSocket) {
           socket.emit('rematchError', 'Opponent has already left.');
@@ -757,7 +759,7 @@ export class GameServer {
         const code = this.generatePrivateCode();
         const roomId = `private_${code}`;
 
-        const room = this.gameLogic.createRoom(roomId, 'pvp', 'general', 'medium');
+        const room = this.gameLogic.createRoom(roomId, 'pvp', category || 'general', difficulty || 'medium');
         room.maxPlayers = 2;
         room.isPrivate = true;
         room.privateCode = code;

@@ -9,6 +9,8 @@ interface GameResults {
   correctAnswersPerPlayer: Record<string, number>;
   maxStreakPerPlayer: Record<string, number>;
   tournamentMatchId?: number;
+  category?: string;
+  difficulty?: string;
 }
 
 interface TriviaState {

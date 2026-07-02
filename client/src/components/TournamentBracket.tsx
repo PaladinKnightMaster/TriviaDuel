@@ -11,13 +11,6 @@ interface Props {
   onLeave: () => void;
 }
 
-const ROUND_LABELS: Record<number, string> = {
-  1: 'Round 1',
-  2: 'Quarterfinals',
-  3: 'Semifinals',
-  4: 'Final',
-};
-
 function getRoundLabel(round: number, maxRound: number): string {
   const fromEnd = maxRound - round;
   if (fromEnd === 0) return 'Final';

@@ -265,5 +265,14 @@ Client: `GameResults.tsx` detects PvP games (`!tournamentMatchId && finalScores.
 - `GameResults.tsx`: Your Performance stats grid `grid-cols-2 sm:grid-cols-4` (2 columns on mobile); action buttons `flex-col sm:flex-row` (stack on mobile)
 - `Matchmaking.tsx`: opponent-joined banner is compact and mobile-friendly by design
 
-**Group D Bugs Found During Audit:**
-None beyond scope — all four features implemented cleanly, TypeScript: 0 errors.
+**Group D Bugs Found and Fixed During Audit (5 total):**
+
+1. **🔴 Critical — Silent rematch failure**: Server emitted `rematchError` but no client listener existed. Added `rematchError` handler in `GameUI.tsx` with a fixed-position error banner (4s auto-dismiss). Users now see "⚠️ Opponent has already left." instead of a silent no-op.
+
+2. **🟡 Medium — Incomplete type annotation**: `App.tsx` `onMatchInviteReceived` handler typed as `{ fromName, roomCode }`, missing `isRematch?: boolean`. Updated type annotation to match `MatchInvite` interface fully. Runtime was unaffected (JS structural passthrough), but the type contract is now correct.
+
+3. **🟡 Medium — Stale socket ID in rematch opponent lookup**: `handleRematch` in `GameUI.tsx` re-read `socketClient.id` at click-time, but `currentPlayerId` (used by `GameResults`) was captured at render-time. If socket reconnected between game-end and click, `myId` diverged from `finalScores` IDs and could find the wrong opponent. Fix: opponent ID now computed inside `GameResults` at render time (same frame as `currentPlayerId`) and passed back to `onRematch(opponentId: string)` — callback signature updated accordingly.
+
+4. **🟡 Medium — Rematch ignored original game settings**: `requestRematch` created rooms with hardcoded `'general'/'medium'`, discarding the original game's category and difficulty. Fix: added `category` + `difficulty` to `gameEnded` server payload → `GameResults` store → `requestRematch` emit → server `createRoom()` call. Rematches now preserve the original settings with `|| 'general'` / `|| 'medium'` fallbacks.
+
+5. **🟢 Minor — Dead constant**: `ROUND_LABELS: Record<number, string>` in `TournamentBracket.tsx` was defined but never read (`getRoundLabel()` reimplemented the same logic inline). Removed.

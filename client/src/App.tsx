@@ -43,6 +43,8 @@ function App() {
         correctAnswersPerPlayer: results.correctAnswersPerPlayer || {},
         maxStreakPerPlayer: results.maxStreakPerPlayer || {},
         tournamentMatchId: results.tournamentMatchId,
+        category: results.category,
+        difficulty: results.difficulty,
       });
       setPhase('results');
     };
@@ -124,7 +126,7 @@ function App() {
     // Private match events
     const onPrivateRoomCreated = (_data: any) => setPhase('matchmaking');
     const onJoinedPrivateRoom = (_data: any) => setPhase('matchmaking');
-    const onMatchInviteReceived = (invite: { fromName: string; roomCode: string }) =>
+    const onMatchInviteReceived = (invite: { fromName: string; roomCode: string; isRematch?: boolean }) =>
       setIncomingInvite(invite);
 
     socketClient.on('privateRoomCreated', onPrivateRoomCreated);
