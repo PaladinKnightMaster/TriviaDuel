@@ -33,7 +33,10 @@ client/              # React SPA (Vite, port 5000 via proxy)
       AchievementToast.tsx # Real-time achievement popup, slide-in animation (Sprint 1)
       PlayerProfile.tsx    # Stats + achievement badges page (Sprint 1)
       Tournament.tsx  # Browse/create/join tournaments lobby (Sprint 2)
-      TournamentBracket.tsx # Bracket visualization + "Play Match" bridge (Sprint 2)
+      TournamentBracket.tsx # Bracket visualization + "Play Match" bridge (Sprint 2);
+                             # shows TournamentPodium first when status is 'completed' (Sprint 3 D5)
+      TournamentPodium.tsx  # Animated winner reveal: confetti, staggered 1st/2nd/3rd
+                             # podium columns, full standings grouped by elimination round (Sprint 3 D5)
       FriendsPanel.tsx     # Slide-in panel: Search/Friends/Requests tabs (Sprint 3A)
       PrivateMatchModal.tsx # Create/Join private room modal (Sprint 3B)
       MatchInviteToast.tsx  # Incoming invite overlay, 30s auto-dismiss (Sprint 3B)

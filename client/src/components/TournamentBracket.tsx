@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTournament } from '../lib/stores/useTournament';
 import { useTrivia } from '../lib/stores/useTrivia';
 import { useSocket } from '../lib/stores/useSocket';
 import { TournamentMatch } from '../../../shared/schema';
-import { ArrowLeft, Trophy, Clock, CheckCircle2, Loader2, Swords } from 'lucide-react';
+import { ArrowLeft, Trophy, Clock, CheckCircle2, Loader2, Swords, Award } from 'lucide-react';
 import { socketClient } from '../lib/socket';
+import { TournamentPodium } from './TournamentPodium';
 
 interface Props {
   onBack: () => void;
@@ -28,6 +29,11 @@ const STATUS_STYLES = {
 export function TournamentBracket({ onBack, onLeave }: Props) {
   const { currentTournament, bracketMatches, setBracketMatches, joinTournamentMatch, refreshBracket } = useTournament();
   const { setPhase } = useTrivia();
+  const [showBracket, setShowBracket] = useState(false);
+
+  useEffect(() => {
+    setShowBracket(false);
+  }, [currentTournament?.id]);
 
   // Build playerId → displayName map from tournament participants
   const playerNames = useMemo<Record<string, string>>(() => {
@@ -52,7 +58,9 @@ export function TournamentBracket({ onBack, onLeave }: Props) {
     return () => socketClient.off('tournamentMatches', onMatches);
   }, [currentTournament?.id]);
 
-  if (!currentTournament) {
+  const isCompleted = currentTournament?.status === 'completed';
+
+  if (!currentTournament || (isCompleted && bracketMatches.length === 0)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-yellow-950 via-amber-900 to-orange-950 flex items-center justify-center">
         <div className="text-white/50 text-center">
@@ -60,6 +68,21 @@ export function TournamentBracket({ onBack, onLeave }: Props) {
           <p>Loading bracket…</p>
         </div>
       </div>
+    );
+  }
+
+  // Once a tournament wraps up, show the animated podium/reveal first
+  // instead of dropping the player straight back into the bracket grid.
+  if (isCompleted && !showBracket) {
+    return (
+      <TournamentPodium
+        tournament={currentTournament}
+        matches={bracketMatches}
+        playerNames={playerNames}
+        onViewBracket={() => setShowBracket(true)}
+        onBack={onBack}
+        onLeave={onLeave}
+      />
     );
   }
 
@@ -71,8 +94,6 @@ export function TournamentBracket({ onBack, onLeave }: Props) {
   }
   const rounds = Object.keys(matchesByRound).map(Number).sort((a, b) => a - b);
   const maxRound = rounds[rounds.length - 1] || 1;
-
-  const isCompleted = currentTournament.status === 'completed';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-950 via-amber-900 to-orange-950 p-4">
@@ -109,24 +130,23 @@ export function TournamentBracket({ onBack, onLeave }: Props) {
               <span className="text-white/40 text-xs capitalize">{currentTournament.category.replace('_', ' ')} · {currentTournament.difficulty}</span>
             </div>
           </div>
-          <button
-            onClick={onLeave}
-            className="text-white/40 hover:text-white/70 text-xs transition-colors"
-          >
-            Leave
-          </button>
+          {isCompleted ? (
+            <button
+              onClick={() => setShowBracket(false)}
+              className="flex items-center gap-1.5 text-amber-300/80 hover:text-amber-300 text-xs transition-colors"
+            >
+              <Award className="w-3.5 h-3.5" />
+              View Podium
+            </button>
+          ) : (
+            <button
+              onClick={onLeave}
+              className="text-white/40 hover:text-white/70 text-xs transition-colors"
+            >
+              Leave
+            </button>
+          )}
         </div>
-
-        {/* Tournament Winner Podium */}
-        {isCompleted && currentTournament.winnerId && (
-          <div className="bg-gradient-to-r from-yellow-600/30 to-amber-600/30 border border-yellow-400/40 rounded-2xl p-5 mb-6 text-center">
-            <div className="text-5xl mb-2">🏆</div>
-            <h2 className="text-white font-bold text-xl">Tournament Complete!</h2>
-            <p className="text-amber-300 text-sm mt-1">
-              🏅 {playerNames[currentTournament.winnerId] || currentTournament.winnerId}
-            </p>
-          </div>
-        )}
 
         {/* Registration waiting message */}
         {currentTournament.status === 'registration' && (

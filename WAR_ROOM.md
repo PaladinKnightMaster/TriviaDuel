@@ -187,9 +187,9 @@ Audited August 4, 2026 — working correctly. Known limitation: guest-created ca
 | D2 | Quick rematch after PvP game — "Rematch" sends invite to opponent | Medium | ✅ |
 | D3 | In-game "opponent joined" notification before `gameStarted` | Medium | ✅ (client-only, detected via player-count change) |
 | D4 | Mobile layout pass — responsive breakpoints across lobby + game screens | Medium | ✅ |
-| D5 | Tournament winner podium — animated reveal, trophy icon, final standings | Low | ⬜ Not built — carry to Sprint 4 if wanted |
+| D5 | Tournament winner podium — animated reveal, trophy icon, final standings | Low | ✅ Built August 5, 2026 |
 
-Audited August 4, 2026 — working correctly. D5 (winner podium) was never implemented; everything else in Group D is live.
+Audited August 4, 2026 — working correctly. D5 (winner podium) was added August 5, 2026: new `TournamentPodium.tsx` — confetti burst, staggered 1st/2nd/3rd columns, and a full standings list grouped by elimination round (semifinalist/quarterfinalist/etc.), computed from bracket match results. `TournamentBracket.tsx` now shows this podium screen first whenever a tournament's status is `completed`, with a "View Full Bracket" toggle to see the underlying grid.
 
 See `replit.md` → "Sprint History" for the full bug-fix audit log from the original Sprint 3 build (Groups A–D, ~15 bugs found and fixed during development).
 
@@ -262,5 +262,4 @@ menu → matchmaking → playing → results → menu
 | Question bank is static code, not DB | `questionBank.ts` | Medium | Sprint 4+ |
 | Guest-owned custom categories lost on reconnect (volatile socket.id) | `customCategoryService.ts` | Low (by design) | — |
 | Rematch/invite targets opponent's live socket.id, not stable authId | `gameServer.ts` | Low | Sprint 4+ |
-| Tournament winner podium not built (D5) | — | Low | Sprint 4+ |
 | CORS `origin: "*"` in dev mode | `gameServer.ts` | Low | Pre-deploy |
