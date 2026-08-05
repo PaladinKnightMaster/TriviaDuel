@@ -1,12 +1,12 @@
 # Trivia Masters — Sprint Tracker & Project Status
 
-**Last Updated:** June 7, 2026
+**Last Updated:** August 4, 2026
 **Stack:** React + Vite + Zustand (client) · Express + Socket.IO + Drizzle ORM + PostgreSQL/pg (server)
 **Codebase:** ~8,200 lines | Port: 5000 | DB: Replit PostgreSQL (14 tables)
 
 ---
 
-## Current Status: Sprint 2 Complete — Sprint 3 Planned
+## Current Status: Sprint 3 Complete (Groups A–D) — Reviewed & Verified
 
 ---
 
@@ -142,46 +142,56 @@
 
 ---
 
-## Sprint 3 — Social Layer + Community ⬜ PLANNED
+## Sprint 3 — Social Layer + Community ✅ COMPLETE
 
 **Goal:** Reason to bring friends — private matches, friends list, custom content, tournament UX polish.
 
-### Group A: Friends & Social *(uses existing `socialService.ts` backend)*
+### Group A: Friends & Social ✅ *(uses existing `socialService.ts` backend)*
 
-| # | Task | Priority | Notes |
-|---|------|----------|-------|
-| A1 | `FriendsPanel.tsx` — search by username, send/accept/decline requests | High | `socialService.sendFriendRequest`, `acceptFriendRequest` |
-| A2 | Friends sidebar/overlay — online status indicator, "Invite to Match" button | High | Socket events: `friendOnline` / `friendOffline` |
-| A3 | Friend leaderboard tab in `Leaderboard.tsx` | Medium | New REST: `GET /api/leaderboard/friends/:userId` |
-| A4 | Public profile view by username — add/remove friend button when viewing others | Medium | Extend `PlayerProfile.tsx` for non-self view |
+| # | Task | Priority | Status |
+|---|------|----------|--------|
+| A1 | `FriendsPanel.tsx` — search by display name, send/accept/decline requests | High | ✅ |
+| A2 | Friends sidebar/overlay — online status indicator, badge on lobby header | High | ✅ (socket events `playerOnline` / `playerOffline`, not `friendOnline`/`friendOffline` as originally named) |
+| A3 | Friend leaderboard tab in `Leaderboard.tsx` | Medium | ✅ (`GET /api/leaderboard?friendIds=` query param, not a separate route) |
+| A4 | Public profile / friend requests via `PlayerProfile.tsx` + `FriendsPanel.tsx` | Medium | ✅ |
 
-### Group B: Private Matches *(uses existing invite infrastructure)*
+Audited August 4, 2026 — no bugs found. Event names, payloads, and reconnect-safe ID handling (`authToSocketId` / `getDbPlayerId`) all verified correct end-to-end.
 
-| # | Task | Priority | Notes |
-|---|------|----------|-------|
-| B1 | Private room creation — host picks settings, gets a 6-char room code | High | New socket: `createPrivateRoom` |
-| B2 | Join by room code from lobby | High | New socket: `joinPrivateRoom` |
-| B3 | Invite via `socialService.sendInvite` → push notification to friend's socket | High | Uses `authToSocketId` reverse map |
-| B4 | Waiting room UI — shows both players, ready-up button | Medium | Reuse `Matchmaking.tsx` pattern |
+### Group B: Private Matches ✅ *(uses existing invite infrastructure)*
 
-### Group C: Custom Categories UI *(backend 100% done in `customCategoryService.ts`)*
+| # | Task | Priority | Status |
+|---|------|----------|--------|
+| B1 | Private room creation — host picks settings, gets a 6-char room code | High | ✅ |
+| B2 | Join by room code from lobby | High | ✅ |
+| B3 | Invite friend from online list → toast notification on their socket | High | ✅ |
+| B4 | Waiting room UI — code display, copy button, ready-up | Medium | ✅ |
 
-| # | Task | Priority | Notes |
-|---|------|----------|-------|
-| C1 | `CustomCategoryBrowser.tsx` — browse public categories, star ratings, question counts | High | Socket: `getPublicCategories` |
-| C2 | `CustomCategoryEditor.tsx` — create category, add questions (up to 20), public/private toggle | High | Socket: `createCustomCategory`, `addCustomQuestion` |
-| C3 | Play button on category card → launch PvE/PvP with custom question bank | High | Pass `customCategoryId` through `joinMatchmaking` |
-| C4 | Rating widget — thumbs up/down or star rating on category cards | Medium | Socket: `rateCategory` |
+Audited August 4, 2026 — working correctly. Minor known limitation: rematch/invite targeting uses the opponent's live `socket.id` captured at game-end; if they reconnect before accepting, the invite fails gracefully with an on-screen error banner (already handled, not a crash).
 
-### Group D: Polish & Tournament UX
+### Group C: Custom Categories UI ✅ *(backend 100% done in `customCategoryService.ts`)*
 
-| # | Task | Priority | Notes |
-|---|------|----------|-------|
-| D1 | Player names in tournament bracket — resolve DB player ID → username | High | `GET /api/player/:id/stats` already returns name |
-| D2 | Quick rematch after PvP game — "Rematch" sends invite to opponent | Medium | New socket: `requestRematch` |
-| D3 | In-game "opponent joined" notification before `gameStarted` | Medium | Emit `opponentJoined` from `joinTournamentMatch` |
-| D4 | Mobile layout pass — responsive breakpoints across lobby + game screens | Medium | TailwindCSS `sm:` / `md:` prefixes |
-| D5 | Tournament winner podium — animated reveal, trophy icon, final standings | Low | New screen after last bracket match |
+| # | Task | Priority | Status |
+|---|------|----------|--------|
+| C1 | `CustomCategoryBrowser.tsx` — browse public categories, star ratings, question counts | High | ✅ |
+| C2 | `CustomCategoryEditor.tsx` — create category, add questions (up to 20), public/private toggle | High | ✅ |
+| C3 | Play button on category card → launch PvE/PvP with custom question bank | High | ✅ |
+| C4 | Star rating widget on category cards | Medium | ✅ |
+
+Audited August 4, 2026 — working correctly. Known limitation: guest-created categories are owned by the volatile `socket.id`, so guests lose access to "My Categories" after reconnecting (by design — same guest-identity tradeoff as elsewhere in the app; auth users are unaffected).
+
+### Group D: Polish & Tournament UX ✅
+
+| # | Task | Priority | Status |
+|---|------|----------|--------|
+| D1 | Player names in tournament bracket — resolve DB player ID → username | High | ✅ |
+| D2 | Quick rematch after PvP game — "Rematch" sends invite to opponent | Medium | ✅ |
+| D3 | In-game "opponent joined" notification before `gameStarted` | Medium | ✅ (client-only, detected via player-count change) |
+| D4 | Mobile layout pass — responsive breakpoints across lobby + game screens | Medium | ✅ |
+| D5 | Tournament winner podium — animated reveal, trophy icon, final standings | Low | ⬜ Not built — carry to Sprint 4 if wanted |
+
+Audited August 4, 2026 — working correctly. D5 (winner podium) was never implemented; everything else in Group D is live.
+
+See `replit.md` → "Sprint History" for the full bug-fix audit log from the original Sprint 3 build (Groups A–D, ~15 bugs found and fixed during development).
 
 ---
 
@@ -249,9 +259,8 @@ menu → matchmaking → playing → results → menu
 |------|------|--------|--------|
 | `@neondatabase/serverless` in package.json (unused) | `package.json` | Low | Cleanup |
 | Guest players produce no persistent stats | `gameServer.ts` | Low (by design) | — |
-| Question bank is static code, not DB | `questionBank.ts` | Medium | Sprint 3+ |
-| Social socket handlers not wired | `gameServer.ts` / `socialService.ts` | High | Sprint 3 |
-| Custom category — no browse/create UI | `customCategoryService.ts` | High | Sprint 3 |
-| Player names in tournament bracket show as IDs | `TournamentBracket.tsx` | Medium | Sprint 3 |
-| No rematch flow after PvP | `GameResults.tsx` | Medium | Sprint 3 |
+| Question bank is static code, not DB | `questionBank.ts` | Medium | Sprint 4+ |
+| Guest-owned custom categories lost on reconnect (volatile socket.id) | `customCategoryService.ts` | Low (by design) | — |
+| Rematch/invite targets opponent's live socket.id, not stable authId | `gameServer.ts` | Low | Sprint 4+ |
+| Tournament winner podium not built (D5) | — | Low | Sprint 4+ |
 | CORS `origin: "*"` in dev mode | `gameServer.ts` | Low | Pre-deploy |
