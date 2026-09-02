@@ -11,6 +11,7 @@ interface GameResults {
   tournamentMatchId?: number;
   category?: string;
   difficulty?: string;
+  playerAuthIds?: Record<string, string>;
 }
 
 interface TriviaState {

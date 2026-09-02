@@ -260,6 +260,8 @@ New `requestRematch` handler in `gameServer.ts`: creates a private room, adds re
 
 Client: `GameResults.tsx` detects PvP games (`!tournamentMatchId && finalScores.some(non-AI, non-self player)`) and shows ⚔️ Rematch button. `GameUI.tsx` handles `onRematch` callback by emitting `requestRematch{opponentId}`. `MatchInviteToast.tsx` and `usePrivateMatch.ts` updated to show "⚔️ Rematch Request!" when `isRematch: true`.
 
+**Reconnect safety**: `gameEnded` includes a `playerAuthIds` map. `GameResults.tsx` uses the opponent's stable auth ID for rematches, and `gameServer.ts` resolves both rematches and friend match invites through `authToSocketId` rather than relying on a stale socket ID. Disconnect cleanup only removes a mapping when it still points to the disconnecting socket.
+
 #### D3 — Opponent-joined notification ✅
 `Matchmaking.tsx` tracks `currentRoom.players.length` changes via `useRef(prevPlayerCount)`. When count goes 1→2 in a **public** (non-private) PvP room, shows an `opponentJoinedName` banner: "⚡ {name} joined! Get ready..." with 3.5s auto-dismiss. Client-only — no new server events required.
 

@@ -45,6 +45,7 @@ function App() {
         tournamentMatchId: results.tournamentMatchId,
         category: results.category,
         difficulty: results.difficulty,
+        playerAuthIds: results.playerAuthIds || {},
       });
       setPhase('results');
     };

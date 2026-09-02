@@ -1,6 +1,6 @@
 # Trivia Masters — Sprint Tracker & Project Status
 
-**Last Updated:** August 4, 2026
+**Last Updated:** September 2, 2026
 **Stack:** React + Vite + Zustand (client) · Express + Socket.IO + Drizzle ORM + PostgreSQL/pg (server)
 **Codebase:** ~8,200 lines | Port: 5000 | DB: Replit PostgreSQL (14 tables)
 
@@ -166,7 +166,7 @@ Audited August 4, 2026 — no bugs found. Event names, payloads, and reconnect-s
 | B3 | Invite friend from online list → toast notification on their socket | High | ✅ |
 | B4 | Waiting room UI — code display, copy button, ready-up | Medium | ✅ |
 
-Audited August 4, 2026 — working correctly. Minor known limitation: rematch/invite targeting uses the opponent's live `socket.id` captured at game-end; if they reconnect before accepting, the invite fails gracefully with an on-screen error banner (already handled, not a crash).
+Audited August 4, 2026 — working correctly. Rechecked September 2, 2026 after the reconnect-safe targeting fix: authenticated rematch and friend invites now resolve through `authToSocketId`, so a reconnect before acceptance does not drop the invite. Guests remain socket-session bound by design.
 
 ### Group C: Custom Categories UI ✅ *(backend 100% done in `customCategoryService.ts`)*
 
@@ -261,5 +261,4 @@ menu → matchmaking → playing → results → menu
 | Guest players produce no persistent stats | `gameServer.ts` | Low (by design) | — |
 | Question bank is static code, not DB | `questionBank.ts` | Medium | Sprint 4+ |
 | Guest-owned custom categories lost on reconnect (volatile socket.id) | `customCategoryService.ts` | Low (by design) | — |
-| Rematch/invite targets opponent's live socket.id, not stable authId | `gameServer.ts` | Low | Sprint 4+ |
 | CORS `origin: "*"` in dev mode | `gameServer.ts` | Low | Pre-deploy |

@@ -10,6 +10,7 @@ interface GameResultsProps {
   correctAnswersPerPlayer?: Record<string, number>;
   maxStreakPerPlayer?: Record<string, number>;
   tournamentMatchId?: number;
+  playerAuthIds?: Record<string, string>;
   onPlayAgain: () => void;
   onMainMenu: () => void;
   onBackToBracket?: () => void;
@@ -126,6 +127,7 @@ export default function GameResults({
   correctAnswersPerPlayer = {},
   maxStreakPerPlayer = {},
   tournamentMatchId,
+  playerAuthIds = {},
   onPlayAgain,
   onMainMenu,
   onBackToBracket,
@@ -138,8 +140,10 @@ export default function GameResults({
 
   // Show Rematch button only for head-to-head PvP games (no tournament, no AI opponents)
   const canRematch = !tournamentMatchId && finalScores.some(p => !p.id.startsWith('ai_') && p.id !== currentPlayerId);
-  // Compute opponent ID at render time (consistent with currentPlayerId, avoids stale socket.id on click)
-  const opponentId = finalScores.find(p => !p.id.startsWith('ai_') && p.id !== currentPlayerId)?.id ?? '';
+  // Prefer the opponent's stable authId (e.g. 'user_5') over their raw socket.id
+  // at game-end, so a rematch invite still reaches them after a reconnect.
+  const opponentRawId = finalScores.find(p => !p.id.startsWith('ai_') && p.id !== currentPlayerId)?.id ?? '';
+  const opponentId = opponentRawId ? (playerAuthIds[opponentRawId] || opponentRawId) : '';
   const isWinner = winner?.id === currentPlayerId;
 
   const myCorrect = correctAnswersPerPlayer[currentPlayerId] ?? 0;

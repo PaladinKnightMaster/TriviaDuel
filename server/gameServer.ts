@@ -220,6 +220,15 @@ export class GameServer {
       }
     }
 
+    // Stable per-player identifiers (authId, not raw socket.id) so the client can
+    // target rematch/invite requests at a player even if they reconnect before
+    // responding (their socket.id would otherwise go stale). Guests have no
+    // stable identifier — they map to themselves and remain reconnect-sensitive.
+    const playerAuthIds: Record<string, string> = {};
+    for (const p of finalRoom.players) {
+      playerAuthIds[p.id] = this.socketToAuthId.get(p.id) || p.id;
+    }
+
     this.io.to(roomId).emit('gameEnded', {
       finalScores: finalRoom.players,
       winner,
@@ -229,6 +238,7 @@ export class GameServer {
       tournamentMatchId: finalRoom.tournamentMatchId,
       category: finalRoom.category,
       difficulty: finalRoom.difficulty,
+      playerAuthIds,
     });
 
     console.log(`Game finished in room ${roomId}. Winner: ${winner?.name} (${winner?.score} pts)`);
@@ -733,7 +743,13 @@ export class GameServer {
         const myDbId = this.getDbPlayerId(socket.id);
         const myName = this.playerNames.get(socket.id) || (myDbId ? `User ${myDbId}` : 'Someone');
 
-        const targetSocketId = this.authToSocketId.get(`user_${targetPlayerId}`);
+        // Friends are stored by DB player id, while authToSocketId is keyed by
+        // the stable auth id. Accept either form so reconnect-safe targeting is
+        // preserved if a caller already has the auth id.
+        const targetAuthId = targetPlayerId.startsWith('user_')
+          ? targetPlayerId
+          : `user_${targetPlayerId}`;
+        const targetSocketId = this.authToSocketId.get(targetAuthId);
         if (!targetSocketId) { socket.emit('inviteError', 'Player is not online'); return; }
 
         const targetSocket = this.io.sockets.sockets.get(targetSocketId);
@@ -749,7 +765,13 @@ export class GameServer {
       // Creates a new private room and sends an invite to the opponent.
       // Reuses privateRoomCreated so App.tsx handles navigation identically.
       socket.on('requestRematch', ({ opponentId, category, difficulty }: { opponentId: string; category?: string; difficulty?: string }) => {
-        const opponentSocket = this.io.sockets.sockets.get(opponentId);
+        // opponentId may be a stable authId ('user_5') resolved via authToSocketId
+        // so a reconnect between game-end and accepting the rematch still finds
+        // them; guests have no stable id and are targeted by raw socket.id.
+        const opponentSocketId = opponentId.startsWith('user_')
+          ? this.authToSocketId.get(opponentId)
+          : opponentId;
+        const opponentSocket = opponentSocketId ? this.io.sockets.sockets.get(opponentSocketId) : undefined;
         if (!opponentSocket) {
           socket.emit('rematchError', 'Opponent has already left.');
           return;
@@ -786,7 +808,15 @@ export class GameServer {
         console.log(`Player disconnected: ${socket.id}`);
         const _authId = this.socketToAuthId.get(socket.id);
         const _dbPlayerId = this.getDbPlayerId(socket.id); // capture before maps are cleared
-        if (_authId && _authId !== socket.id) this.authToSocketId.delete(_authId);
+        // Do not let a delayed disconnect from an old socket erase the
+        // replacement socket that has already reconnected for this account.
+        if (
+          _authId &&
+          _authId !== socket.id &&
+          this.authToSocketId.get(_authId) === socket.id
+        ) {
+          this.authToSocketId.delete(_authId);
+        }
         this.socketToAuthId.delete(socket.id);
         // Social: mark offline and notify friends
         if (_dbPlayerId) {

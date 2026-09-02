@@ -85,6 +85,7 @@ export function GameUI() {
               correctAnswersPerPlayer={gameResults.correctAnswersPerPlayer}
               maxStreakPerPlayer={gameResults.maxStreakPerPlayer}
               tournamentMatchId={gameResults.tournamentMatchId}
+              playerAuthIds={gameResults.playerAuthIds}
               onPlayAgain={handlePlayAgain}
               onMainMenu={handleMainMenu}
               onBackToBracket={gameResults.tournamentMatchId ? handleBackToBracket : undefined}
