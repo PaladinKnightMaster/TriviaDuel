@@ -2,11 +2,11 @@
 
 **Last Updated:** September 2, 2026
 **Stack:** React + Vite + Zustand (client) · Express + Socket.IO + Drizzle ORM + PostgreSQL/pg (server)
-**Codebase:** ~8,200 lines | Port: 5000 | DB: Replit PostgreSQL (15 tables)
+**Codebase:** ~8,500 lines | Port: 5000 | DB: Replit PostgreSQL (15 tables)
 
 ---
 
-## Current Status: Sprint 3 Complete (Groups A–D) — Reviewed & Verified
+## Current Status: Sprint 4 Complete — Reviewed & Verified
 
 ---
 
@@ -17,13 +17,13 @@
 | File | Role | Status |
 |------|------|--------|
 | `index.ts` | Express entry point, port 5000 | ✅ Working |
-| `routes.ts` | REST: `/api/auth/*`, `/api/leaderboard`, `/api/player/:id/*`, `/api/tournaments/*` | ✅ Working |
+| `routes.ts` | REST: `/api/auth/*`, `/api/admin/questions`, `/api/leaderboard`, `/api/player/:id/*`, `/api/tournaments/*` | ✅ Working |
 | `gameServer.ts` | Socket.IO hub, JWT handshake, game lifecycle, tournament bridge, `authToSocketId` reverse map | ✅ Working |
 | `gameLogic.ts` | In-memory rooms, scoring, streak + correct-answer tracking, `maxStreakPerPlayer` | ✅ Working |
 | `matchmaking.ts` | ELO queue, skill-range expansion, tier system | ✅ Complete |
 | `questionBank.ts` | Database-backed catalog with idempotent 270-question startup seed | ✅ Complete |
 | `storage.ts` | Drizzle ORM + pg Pool, stats / leaderboard / achievements | ✅ Working |
-| `authService.ts` | JWT sign/verify, bcrypt register/login/getUserById | ✅ Working |
+| `authService.ts` | JWT sign/verify, bcrypt register/login/getUserById, admin flag | ✅ Working |
 | `achievementService.ts` | 10 achievements, `checkAndAwardAchievements()`, `maxStreakPerPlayer` fix | ✅ Complete |
 | `tournamentService.ts` | Tournament CRUD, bracket gen, `getMatch`, `updateMatchRoom`, `getPendingMatches`, `getAllTournaments` | ✅ Fully wired |
 | `socialService.ts` | Friends, messages, invites — backend only | ⚠️ No socket handlers / UI |
@@ -36,6 +36,7 @@
 | `App.tsx` | Root: auth init, socket connect, global event listeners (game + tournament), AchievementToast | ✅ Working |
 | `GameUI.tsx` | Phase router: menu → matchmaking → playing → results → tournament → profile | ✅ Working |
 | `GameLobby.tsx` | Main menu, PvP / PvE / Tournament entry, auth + profile buttons | ✅ Working |
+| `AdminQuestionManager.tsx` | Admin-only question catalog: create, edit, filter, retire/reactivate | ✅ Complete |
 | `Matchmaking.tsx` | PvP queue, category/difficulty select | ✅ Working |
 | `TriviaGame.tsx` | Live game: timer, question, answers, scoreboard | ✅ Working |
 | `GameResults.tsx` | Confetti, score count-up, correct-answer count, accuracy %, best streak, "View Bracket" for tournaments | ✅ Sprint 2 |
@@ -258,8 +259,9 @@ menu → matchmaking → playing → results → menu
 | # | Task | Status |
 |---|------|--------|
 | 4 | Move the built-in question bank from static runtime data to PostgreSQL | ✅ |
+| 5 | Add protected admin question catalog management | ✅ |
 
-`questions` stores the stable question ID, category, difficulty, prompt, four answer options, correct answer index, and time limit. Startup seeds the original 270 questions with conflict-safe inserts, then loads the catalog into memory for the synchronous per-question game loop. Database-edited rows are preserved across restarts. Verified with 270 rows and 45 questions per category.
+`questions` stores the stable question ID, category, difficulty, prompt, four answer options, correct answer index, time limit, and active/retired state. Startup seeds the original 270 questions with conflict-safe inserts, then loads active rows into memory for the synchronous per-question game loop. Database-edited rows are preserved across restarts. Admins can manage the catalog through protected REST endpoints and the lobby's Catalog panel. Verified with 270 rows and 45 questions per category.
 
 ---
 

@@ -81,6 +81,7 @@ server/
                       # deleteRoom(): cleans up customQuestionsMap entry
   matchmaking.ts      # ELO queue, skill-based matching, tier system
       questionBank.ts     # DB-backed 270-question catalog + idempotent startup seed
+      routes.ts            # REST auth, admin question catalog, player, tournament endpoints
   storage.ts          # Drizzle ORM + PostgreSQL (pg Pool driver) + in-memory fallback
   authService.ts      # JWT signToken/verifyToken + bcrypt register/login/getUserById
   achievementService.ts # 10 achievements — checkAndAwardAchievements() uses maxStreakPerPlayer
@@ -89,19 +90,19 @@ server/
   customCategoryService.ts # UGC categories + ratings — full CRUD, public/private, search
 
 shared/
-  schema.ts           # Drizzle schema (14 tables) + shared TypeScript interfaces
+  schema.ts           # Drizzle schema (15 tables) + shared TypeScript interfaces
                       # GameRoom: maxStreakPerPlayer, tournamentMatchId?, isPrivate?,
                       #   privateCode?, customCategoryId?
                       # GamePhase: 'menu'|'matchmaking'|'playing'|'results'|'tournament'|'custom'
 ```
 
-## Database (PostgreSQL — 14 tables)
+## Database (PostgreSQL — 15 tables)
 
 Uses Replit's built-in PostgreSQL via **`drizzle-orm/node-postgres`** (pg Pool).
 > ⚠️ Do NOT use `drizzle-orm/neon-http` — this env is standard PostgreSQL, not Neon serverless cloud.
 
 Key tables:
-- `users` — id (serial PK), username (unique), password_hash (bcrypt)
+- `users` — id (serial PK), username (unique), password_hash (bcrypt), is_admin
 - `game_stats` — playerId (unique text), totalGames, wins, losses, averageScore, bestStreak, rating, tier
 - `leaderboards` — playerId (unique text), playerName, totalScore (accumulated), gamesWon, bestStreak, rank
 - `player_achievements` — playerId, achievementId, progress, maxProgress, unlocked, unlockedAt
@@ -109,7 +110,7 @@ Key tables:
 - `friendships` — requesterId, recipientId, status (pending/accepted/rejected/blocked)
 - `custom_categories` — id, name, description, createdBy (auth: "user_N", guest: socket.id), isPublic, questionCount, plays, rating
 - `custom_questions` — id, categoryId, question, option1-4, correctAnswer, difficulty, explanation
-- `questions` — stable ID, category, difficulty, question, options JSON, correctAnswer, timeLimit
+- `questions` — stable ID, category, difficulty, question, options JSON, correctAnswer, timeLimit, isActive
 - `category_ratings` — categoryId, playerId, rating (1-5), review
 - `tournaments`, `tournament_participants`, `tournament_matches`, `player_messages`, `game_invites`
 
@@ -120,7 +121,9 @@ Key tables:
 - **DB player ID**: `getDbPlayerId(socketId)` resolves `socket.id → "user_2" → "2"` (numeric string matching REST API key)
 - **Guests**: `getDbPlayerId` returns `null` for non-auth sockets — no stats persisted for guests
 - **REST endpoints**: POST /api/auth/register, POST /api/auth/login, GET /api/auth/me
+- **Admin catalog**: GET/POST/PATCH /api/admin/questions, protected by the user's persisted `isAdmin` flag
 - **Client stores**: `useAuth.ts` handles login/register/logout + `reconnectWithToken()` for socket re-auth
+- **Admin UI**: `AdminQuestionManager.tsx` is shown from the lobby only for users with `isAdmin=true`; it supports create, edit, filter, retire, and reactivate.
 
 ## Socket Listener Persistence
 
@@ -199,7 +202,7 @@ Triggered in `gameServer.ts → finishGame()`, persisted to `player_achievements
 ## Sprint History
 
 ### Sprint 0 — Core Loop ✅
-Core game loop, PvP/PvE rooms, ELO matchmaking, answer tracking, 10-question match limit, event-driven AI timing, GameResults screen, 270-question database-backed catalog, leaderboard score accumulation, DB schema (15 tables).
+Core game loop, PvP/PvE rooms, ELO matchmaking, answer tracking, 10-question match limit, event-driven AI timing, GameResults screen, 270-question database-backed catalog, protected admin question management, leaderboard score accumulation, DB schema (15 tables).
 
 ### Sprint 1 — Identity + Achievements ✅
 JWT auth (register/login/me endpoints), Socket.IO JWT handshake, persistent `socketToAuthId` map, 10 achievements with rarity system, `AuthModal`, `AchievementToast` with slide-in animation, `PlayerProfile` stats page, GameLobby auth integration.

@@ -8,7 +8,7 @@ import { useAuth } from '../lib/stores/useAuth';
 import { CategorySelect } from './CategorySelect';
 import { Leaderboard } from './Leaderboard';
 import { AuthModal } from './AuthModal';
-import { Trophy, Users, Zap, BookOpen, ChevronDown, ChevronUp, User, LogOut, Award, UserPlus, Lock, Globe } from 'lucide-react';
+import { Trophy, Users, Zap, BookOpen, ChevronDown, ChevronUp, User, LogOut, Award, UserPlus, Lock, Globe, ShieldCheck } from 'lucide-react';
 import { FriendsPanel } from './FriendsPanel';
 import { PrivateMatchModal } from './PrivateMatchModal';
 import { useSocial } from '../lib/stores/useSocial';
@@ -30,9 +30,10 @@ const DIFFICULTIES = [
 
 interface GameLobbyProps {
   onOpenProfile?: () => void;
+  onOpenAdmin?: () => void;
 }
 
-export function GameLobby({ onOpenProfile }: GameLobbyProps) {
+export function GameLobby({ onOpenProfile, onOpenAdmin }: GameLobbyProps) {
   const { playerName, setPlayerName, setPhase } = useTrivia();
   const { setPlayerName: setSocketPlayerName, joinMatchmaking } = useSocket();
   const { user, logout } = useAuth();
@@ -84,6 +85,16 @@ export function GameLobby({ onOpenProfile }: GameLobbyProps) {
           <div className="absolute right-0 top-0 flex items-center gap-2">
             {user ? (
               <>
+                {user.isAdmin && (
+                  <button
+                    onClick={onOpenAdmin}
+                    className="flex items-center gap-1.5 text-sm text-amber-300 hover:text-amber-200 bg-amber-900/30 border border-amber-500/40 rounded-xl px-3 py-1.5 transition-all hover:bg-amber-900/50"
+                    title="Manage question catalog"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span className="hidden sm:inline">Catalog</span>
+                  </button>
+                )}
                 <button
                   onClick={() => setShowFriendsPanel(true)}
                   className="relative flex items-center gap-1.5 text-sm text-blue-300 hover:text-blue-200 bg-blue-900/40 border border-blue-500/40 rounded-xl px-3 py-1.5 transition-all hover:bg-blue-900/60"

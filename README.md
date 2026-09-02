@@ -89,7 +89,7 @@ trivia-masters/
 │
 ├── server/
 │   ├── index.ts                # Express entry point, port 5000
-│   ├── routes.ts               # REST: /api/auth/*, /api/leaderboard, /api/player/:id/*
+│   ├── routes.ts               # REST: auth, admin question catalog, leaderboard, player APIs
 │   ├── gameServer.ts           # Socket.IO hub: JWT auth, real-time events, game lifecycle
 │   ├── gameLogic.ts            # In-memory room state, answer validation, scoring, streaks
 │   ├── matchmaking.ts          # ELO queue with skill-range expansion over wait time
@@ -102,7 +102,7 @@ trivia-masters/
 │   └── customCategoryService.ts # UGC categories + ratings (fully wired)
 │
 └── shared/
-    └── schema.ts               # Drizzle schema (14 tables) + shared TypeScript interfaces
+    └── schema.ts               # Drizzle schema (15 tables) + shared TypeScript interfaces
 ```
 
 ---
@@ -178,6 +178,9 @@ joinPvE → createRoom → addAIPlayer → startGame
 | `POST` | `/api/auth/register` | — | Register new account |
 | `POST` | `/api/auth/login` | — | Login, returns JWT |
 | `GET` | `/api/auth/me` | JWT | Get current user |
+| `GET` | `/api/admin/questions` | Admin JWT | List active and retired questions |
+| `POST` | `/api/admin/questions` | Admin JWT | Create a question |
+| `PATCH` | `/api/admin/questions/:id` | Admin JWT | Edit or retire/reactivate a question |
 | `GET` | `/api/leaderboard` | — | Global leaderboard (top 100) |
 | `GET` | `/api/player/:id/stats` | — | Player stats by numeric user ID |
 | `GET` | `/api/player/:id/achievements` | — | Player achievement progress |

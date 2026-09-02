@@ -6,6 +6,7 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   passwordHash: text("password_hash").notNull(), // Changed from plaintext password
+  isAdmin: boolean("is_admin").default(false).notNull(),
 });
 
 export const gameStats = pgTable("game_stats", {
@@ -39,6 +40,7 @@ export const questions = pgTable("questions", {
   options: jsonb("options").$type<string[]>().notNull(),
   correctAnswer: integer("correct_answer").notNull(),
   timeLimit: integer("time_limit").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -214,6 +216,10 @@ export interface Question {
   options: string[];
   correctAnswer: number;
   timeLimit: number;
+}
+
+export interface ManagedQuestion extends Question {
+  isActive: boolean;
 }
 
 export interface GameRoom {

@@ -35,7 +35,7 @@ export class AuthService {
     return bcrypt.compare(plainPassword, hash);
   }
 
-  async registerUser(username: string, password: string): Promise<{ success: boolean; token?: string; userId?: number; username?: string; error?: string }> {
+  async registerUser(username: string, password: string): Promise<{ success: boolean; token?: string; userId?: number; username?: string; isAdmin?: boolean; error?: string }> {
     try {
       if (!username || username.trim().length < 2) {
         return { success: false, error: 'Username must be at least 2 characters' };
@@ -56,14 +56,14 @@ export class AuthService {
       const [newUser] = inserted;
 
       const token = this.signToken({ userId: newUser.id, username: newUser.username });
-      return { success: true, token, userId: newUser.id, username: newUser.username };
+      return { success: true, token, userId: newUser.id, username: newUser.username, isAdmin: newUser.isAdmin };
     } catch (error) {
       console.error('Registration error:', error);
       return { success: false, error: 'Registration failed' };
     }
   }
 
-  async loginUser(username: string, password: string): Promise<{ success: boolean; token?: string; userId?: number; username?: string; error?: string }> {
+  async loginUser(username: string, password: string): Promise<{ success: boolean; token?: string; userId?: number; username?: string; isAdmin?: boolean; error?: string }> {
     try {
       const userRows = (await db.select().from(users).where(eq(users.username, username.trim()))) ?? [];
       const [user] = userRows;
@@ -77,18 +77,18 @@ export class AuthService {
       }
 
       const token = this.signToken({ userId: user.id, username: user.username });
-      return { success: true, token, userId: user.id, username: user.username };
+      return { success: true, token, userId: user.id, username: user.username, isAdmin: user.isAdmin };
     } catch (error) {
       console.error('Login error:', error);
       return { success: false, error: 'Login failed' };
     }
   }
 
-  async getUserById(userId: number): Promise<{ id: number; username: string } | null> {
+  async getUserById(userId: number): Promise<{ id: number; username: string; isAdmin: boolean } | null> {
     try {
       const rows = (await db.select().from(users).where(eq(users.id, userId))) ?? [];
       const [user] = rows;
-      return user ? { id: user.id, username: user.username } : null;
+      return user ? { id: user.id, username: user.username, isAdmin: user.isAdmin } : null;
     } catch {
       return null;
     }

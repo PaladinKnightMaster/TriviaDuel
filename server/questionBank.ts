@@ -1,5 +1,6 @@
 import { Question, questions as questionsTable } from '../shared/schema';
 import { db } from './storage';
+import { eq } from 'drizzle-orm';
 
 export interface QuestionData {
   category: string;
@@ -342,7 +343,25 @@ export class QuestionBank {
       })))
       .onConflictDoNothing();
 
-    const storedQuestions = await db.select().from(questionsTable);
+    await this.loadActiveQuestions();
+
+    if (this.questions.length === 0) {
+      throw new Error('Question bank initialization failed: no questions are available');
+    }
+
+    this.initialized = true;
+  }
+
+  async refresh(): Promise<void> {
+    await this.loadActiveQuestions();
+    if (this.questions.length === 0) {
+      throw new Error('Question bank refresh failed: no active questions are available');
+    }
+    this.initialized = true;
+  }
+
+  private async loadActiveQuestions(): Promise<void> {
+    const storedQuestions = await db.select().from(questionsTable).where(eq(questionsTable.isActive, true));
     this.questions = storedQuestions.map((question) => ({
       category: question.category,
       difficulty: question.difficulty as QuestionData['difficulty'],
@@ -351,12 +370,6 @@ export class QuestionBank {
       correctAnswer: question.correctAnswer,
       timeLimit: question.timeLimit,
     }));
-
-    if (this.questions.length === 0) {
-      throw new Error('Question bank initialization failed: no questions are available');
-    }
-
-    this.initialized = true;
   }
 
   private getAvailableQuestions(): QuestionData[] {

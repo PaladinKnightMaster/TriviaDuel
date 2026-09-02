@@ -7,6 +7,7 @@ const USER_KEY = 'trivia_auth_user';
 interface AuthUser {
   userId: number;
   username: string;
+  isAdmin: boolean;
 }
 
 interface AuthState {
@@ -33,8 +34,36 @@ export const useAuth = create<AuthState>((set, get) => ({
     const userRaw = localStorage.getItem(USER_KEY);
     if (token && userRaw) {
       try {
-        const user = JSON.parse(userRaw) as AuthUser;
+         const storedUser = JSON.parse(userRaw) as Partial<AuthUser>;
+         const user: AuthUser = {
+           userId: storedUser.userId!,
+           username: storedUser.username!,
+           isAdmin: storedUser.isAdmin === true,
+         };
         set({ token, user });
+
+        fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+          .then(async (response) => {
+            if (response.status === 401) {
+              localStorage.removeItem(TOKEN_KEY);
+              localStorage.removeItem(USER_KEY);
+              set({ token: null, user: null });
+              socketClient.reconnectWithToken(null);
+              return;
+            }
+            if (!response.ok) throw new Error('Session refresh failed');
+            const data = await response.json();
+            const refreshedUser: AuthUser = {
+              userId: data.userId,
+              username: data.username,
+              isAdmin: data.isAdmin === true,
+            };
+            localStorage.setItem(USER_KEY, JSON.stringify(refreshedUser));
+            set({ user: refreshedUser });
+          })
+          .catch(() => {
+            // Keep the cached session usable while the server is temporarily unavailable.
+          });
       } catch {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
@@ -55,7 +84,7 @@ export const useAuth = create<AuthState>((set, get) => ({
         set({ isLoading: false, error: data.error || 'Login failed' });
         return false;
       }
-      const user: AuthUser = { userId: data.userId, username: data.username };
+       const user: AuthUser = { userId: data.userId, username: data.username, isAdmin: data.isAdmin === true };
       localStorage.setItem(TOKEN_KEY, data.token);
       localStorage.setItem(USER_KEY, JSON.stringify(user));
       set({ token: data.token, user, isLoading: false, error: null });
@@ -80,7 +109,7 @@ export const useAuth = create<AuthState>((set, get) => ({
         set({ isLoading: false, error: data.error || 'Registration failed' });
         return false;
       }
-      const user: AuthUser = { userId: data.userId, username: data.username };
+       const user: AuthUser = { userId: data.userId, username: data.username, isAdmin: data.isAdmin === true };
       localStorage.setItem(TOKEN_KEY, data.token);
       localStorage.setItem(USER_KEY, JSON.stringify(user));
       set({ token: data.token, user, isLoading: false, error: null });

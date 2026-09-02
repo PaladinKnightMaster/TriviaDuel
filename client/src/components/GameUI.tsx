@@ -10,11 +10,13 @@ import GameResults from './GameResults';
 import { PlayerProfile } from './PlayerProfile';
 import { Tournament } from './Tournament';
 import { CustomCategoryBrowser } from './CustomCategoryBrowser';
+import { AdminQuestionManager } from './AdminQuestionManager';
 
 export function GameUI() {
   const { phase, gameResults, resetGame, setPhase } = useTrivia();
   const { } = useSocket(); // keep import live for side-effects
   const [showProfile, setShowProfile] = useState(false);
+  const [showAdminManager, setShowAdminManager] = useState(false);
   const [rematchError, setRematchError] = useState<string | null>(null);
 
   // BUG 1 fix: handle rematchError (opponent already left) — server emits this event
@@ -56,10 +58,13 @@ export function GameUI() {
   if (showProfile) {
     return <PlayerProfile onBack={() => setShowProfile(false)} />;
   }
+  if (showAdminManager) {
+    return <AdminQuestionManager onBack={() => setShowAdminManager(false)} />;
+  }
 
   switch (phase) {
     case 'menu':
-      return <GameLobby onOpenProfile={() => setShowProfile(true)} />;
+       return <GameLobby onOpenProfile={() => setShowProfile(true)} onOpenAdmin={() => setShowAdminManager(true)} />;
     case 'matchmaking':
       return <Matchmaking />;
     case 'playing':
@@ -109,6 +114,6 @@ export function GameUI() {
         </div>
       );
     default:
-      return <GameLobby onOpenProfile={() => setShowProfile(true)} />;
+      return <GameLobby onOpenProfile={() => setShowProfile(true)} onOpenAdmin={() => setShowAdminManager(true)} />;
   }
 }
