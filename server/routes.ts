@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { GameServer } from "./gameServer";
+import { QuestionBank } from "./questionBank";
 import { storage } from "./storage";
 import { authService } from "./authService";
 import { achievementService } from "./achievementService";
@@ -146,6 +147,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── HTTP SERVER + WEBSOCKET ────────────────────────────────────────────────
   const httpServer = createServer(app);
-  new GameServer(httpServer);
+  // Load and seed the built-in question catalog before accepting game traffic.
+  // GameLogic remains synchronous during a match, so startup is the single
+  // async boundary for the database-backed question bank.
+  const questionBank = new QuestionBank();
+  await questionBank.initialize();
+  new GameServer(httpServer, questionBank);
   return httpServer;
 }

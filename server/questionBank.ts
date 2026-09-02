@@ -1,6 +1,7 @@
-import { Question } from '../shared/schema';
+import { Question, questions as questionsTable } from '../shared/schema';
+import { db } from './storage';
 
-interface QuestionData {
+export interface QuestionData {
   category: string;
   difficulty: 'easy' | 'medium' | 'hard';
   question: string;
@@ -9,7 +10,9 @@ interface QuestionData {
   timeLimit: number;
 }
 
-const questionBank: QuestionData[] = [
+// Seed catalog used to initialize a new database. Runtime games read from the
+// questions table after QuestionBank.initialize() completes.
+export const seedQuestions: QuestionData[] = [
   // ─── SCIENCE — EASY ───────────────────────────────────────────────────────
   { category: 'science', difficulty: 'easy', question: 'What planet is closest to the Sun?', options: ['Venus', 'Mercury', 'Earth', 'Mars'], correctAnswer: 1, timeLimit: 15 },
   { category: 'science', difficulty: 'easy', question: 'What is the boiling point of water at sea level?', options: ['90°C', '95°C', '100°C', '105°C'], correctAnswer: 2, timeLimit: 15 },
@@ -317,16 +320,54 @@ const questionBank: QuestionData[] = [
   { category: 'general', difficulty: 'hard', question: 'Who formulated the theory of general relativity?', options: ['Isaac Newton', 'Niels Bohr', 'Albert Einstein', 'Max Planck'], correctAnswer: 2, timeLimit: 25 },
 ];
 
-export class QuestionBank {
-  private questions: QuestionData[];
-  private usedQuestionIds: Set<string> = new Set();
+function getQuestionId(question: QuestionData): string {
+  return `${question.category}_${question.difficulty}_${question.question.substring(0, 30)}`;
+}
 
-  constructor() {
-    this.questions = [...questionBank];
+function toQuestion(question: QuestionData, id = getQuestionId(question)): Question {
+  return { id, ...question };
+}
+
+export class QuestionBank {
+  private questions: QuestionData[] = [];
+  private initialized = false;
+
+  async initialize(): Promise<void> {
+    // onConflictDoNothing makes startup seeding safe to run repeatedly while
+    // allowing future database-edited questions to remain untouched.
+    await db.insert(questionsTable)
+      .values(seedQuestions.map((question) => ({
+        id: getQuestionId(question),
+        ...question,
+      })))
+      .onConflictDoNothing();
+
+    const storedQuestions = await db.select().from(questionsTable);
+    this.questions = storedQuestions.map((question) => ({
+      category: question.category,
+      difficulty: question.difficulty as QuestionData['difficulty'],
+      question: question.question,
+      options: question.options,
+      correctAnswer: question.correctAnswer,
+      timeLimit: question.timeLimit,
+    }));
+
+    if (this.questions.length === 0) {
+      throw new Error('Question bank initialization failed: no questions are available');
+    }
+
+    this.initialized = true;
+  }
+
+  private getAvailableQuestions(): QuestionData[] {
+    if (!this.initialized) {
+      throw new Error('QuestionBank must be initialized before requesting questions');
+    }
+    return this.questions;
   }
 
   getRandomQuestion(category?: string, difficulty?: string, excludeIds?: string[]): Question | null {
-    let filteredQuestions = this.questions;
+    let filteredQuestions = this.getAvailableQuestions();
 
     if (category && category !== 'general') {
       filteredQuestions = filteredQuestions.filter(q => q.category === category);
@@ -341,7 +382,7 @@ export class QuestionBank {
     if (excludeIds && excludeIds.length > 0) {
       const excludeSet = new Set(excludeIds);
       const unused = filteredQuestions.filter(q => {
-        const id = `${q.category}_${q.difficulty}_${q.question.substring(0, 30)}`;
+        const id = getQuestionId(q);
         return !excludeSet.has(id);
       });
       // Only use unused questions if available; otherwise allow repeats
@@ -357,35 +398,24 @@ export class QuestionBank {
     const randomIndex = Math.floor(Math.random() * filteredQuestions.length);
     const questionData = filteredQuestions[randomIndex];
     // Stable, deterministic ID — no random suffix so history dedup works correctly
-    const id = `${questionData.category}_${questionData.difficulty}_${questionData.question.substring(0, 30)}`;
-
-    return {
-      id,
-      ...questionData
-    };
+    return toQuestion(questionData);
   }
 
   getQuestionsByCategory(category: string, count: number = 10): Question[] {
-    const categoryQuestions = this.questions.filter(q => q.category === category);
+    const categoryQuestions = this.getAvailableQuestions().filter(q => q.category === category);
     const shuffled = [...categoryQuestions].sort(() => Math.random() - 0.5);
 
-    return shuffled.slice(0, count).map(questionData => ({
-      id: `${questionData.category}_${questionData.difficulty}_${questionData.question.substring(0, 20)}_${Math.random().toString(36).substr(2, 5)}`,
-      ...questionData
-    }));
+    return shuffled.slice(0, count).map((questionData) => toQuestion(questionData));
   }
 
   getQuestionsByDifficulty(difficulty: string, count: number = 10): Question[] {
-    const difficultyQuestions = this.questions.filter(q => q.difficulty === difficulty);
+    const difficultyQuestions = this.getAvailableQuestions().filter(q => q.difficulty === difficulty);
     const shuffled = [...difficultyQuestions].sort(() => Math.random() - 0.5);
 
-    return shuffled.slice(0, count).map(questionData => ({
-      id: `${questionData.category}_${questionData.difficulty}_${questionData.question.substring(0, 20)}_${Math.random().toString(36).substr(2, 5)}`,
-      ...questionData
-    }));
+    return shuffled.slice(0, count).map((questionData) => toQuestion(questionData));
   }
 
   getTotalCount(): number {
-    return this.questions.length;
+    return this.getAvailableQuestions().length;
   }
 }

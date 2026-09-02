@@ -10,7 +10,7 @@
 |----------|---------|
 | **Game Modes** | Player vs Player (real-time), Player vs AI (adaptive difficulty) |
 | **Matchmaking** | ELO-based skill matchmaking with Bronze → Grandmaster tier system |
-| **Question Bank** | 270 curated questions — 6 categories × 3 difficulties × 15 questions |
+| **Question Bank** | 270 curated questions stored in PostgreSQL — 6 categories × 3 difficulties × 15 questions |
 | **Scoring** | Base points + time bonus + streak multiplier (×3 streak = bonus points) |
 | **Achievements** | 10 achievements across 4 rarity tiers (Common / Rare / Epic / Legendary) |
 | **Auth** | JWT register/login, bcrypt password hashing, 7-day session |
@@ -93,7 +93,7 @@ trivia-masters/
 │   ├── gameServer.ts           # Socket.IO hub: JWT auth, real-time events, game lifecycle
 │   ├── gameLogic.ts            # In-memory room state, answer validation, scoring, streaks
 │   ├── matchmaking.ts          # ELO queue with skill-range expansion over wait time
-│   ├── questionBank.ts         # 270 static questions (6 categories × 3 diff × 15)
+│   ├── questionBank.ts         # DB-backed catalog + idempotent seed (270 questions)
 │   ├── storage.ts              # Drizzle ORM + pg Pool — stats, leaderboard, achievements
 │   ├── authService.ts          # JWT sign/verify + bcrypt register/login/getUserById
 │   ├── achievementService.ts   # 10 achievements — checkAndAwardAchievements() trigger

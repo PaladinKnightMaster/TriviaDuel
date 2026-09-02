@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -29,6 +29,16 @@ export const leaderboards = pgTable("leaderboards", {
   gamesWon: integer("games_won").default(0),
   bestStreak: integer("best_streak").default(0),
   rank: integer("rank").default(1),
+});
+
+export const questions = pgTable("questions", {
+  id: text("id").primaryKey(),
+  category: text("category").notNull(),
+  difficulty: text("difficulty").notNull(),
+  question: text("question").notNull(),
+  options: jsonb("options").$type<string[]>().notNull(),
+  correctAnswer: integer("correct_answer").notNull(),
+  timeLimit: integer("time_limit").notNull(),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({

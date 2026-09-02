@@ -7,8 +7,8 @@ export class GameLogic {
   private roomQuestionHistory: Map<string, string[]>;
   private customQuestionsMap: Map<string, Question[]>;
 
-  constructor() {
-    this.questionBank = new QuestionBank();
+  constructor(questionBank: QuestionBank = new QuestionBank()) {
+    this.questionBank = questionBank;
     this.rooms = new Map();
     this.roomQuestionHistory = new Map();
     this.customQuestionsMap = new Map();

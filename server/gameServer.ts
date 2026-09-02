@@ -8,6 +8,7 @@ import { storage } from './storage';
 import { authService } from './authService';
 import { achievementService } from './achievementService';
 import { SocialService } from './socialService';
+import { QuestionBank } from './questionBank';
 import { Player, Answer } from '../shared/schema';
 
 export class GameServer {
@@ -31,7 +32,7 @@ export class GameServer {
   // Private room code → roomId
   private privateRoomCodes: Map<string, string>;
 
-  constructor(httpServer: Server) {
+  constructor(httpServer: Server, questionBank: QuestionBank = new QuestionBank()) {
     this.io = new SocketServer(httpServer, {
       cors: {
         origin: process.env.NODE_ENV === 'production'
@@ -41,7 +42,7 @@ export class GameServer {
       }
     });
 
-    this.gameLogic = new GameLogic();
+    this.gameLogic = new GameLogic(questionBank);
     this.matchmaking = new MatchmakingService(this.gameLogic);
     this.tournament = new TournamentService();
     this.customCategories = new CustomCategoryService();

@@ -2,7 +2,7 @@
 
 **Last Updated:** September 2, 2026
 **Stack:** React + Vite + Zustand (client) · Express + Socket.IO + Drizzle ORM + PostgreSQL/pg (server)
-**Codebase:** ~8,200 lines | Port: 5000 | DB: Replit PostgreSQL (14 tables)
+**Codebase:** ~8,200 lines | Port: 5000 | DB: Replit PostgreSQL (15 tables)
 
 ---
 
@@ -21,7 +21,7 @@
 | `gameServer.ts` | Socket.IO hub, JWT handshake, game lifecycle, tournament bridge, `authToSocketId` reverse map | ✅ Working |
 | `gameLogic.ts` | In-memory rooms, scoring, streak + correct-answer tracking, `maxStreakPerPlayer` | ✅ Working |
 | `matchmaking.ts` | ELO queue, skill-range expansion, tier system | ✅ Complete |
-| `questionBank.ts` | 270 questions (6 categories × 3 difficulties × 15 each) | ✅ Complete |
+| `questionBank.ts` | Database-backed catalog with idempotent 270-question startup seed | ✅ Complete |
 | `storage.ts` | Drizzle ORM + pg Pool, stats / leaderboard / achievements | ✅ Working |
 | `authService.ts` | JWT sign/verify, bcrypt register/login/getUserById | ✅ Working |
 | `achievementService.ts` | 10 achievements, `checkAndAwardAchievements()`, `maxStreakPerPlayer` fix | ✅ Complete |
@@ -60,7 +60,7 @@
 
 | File | Role | Status |
 |------|------|--------|
-| `schema.ts` | 14 Drizzle tables + TypeScript interfaces; `GameRoom` includes `maxStreakPerPlayer` + `tournamentMatchId?` | ✅ Current |
+| `schema.ts` | 15 Drizzle tables + TypeScript interfaces; `GameRoom` includes `maxStreakPerPlayer` + `tournamentMatchId?` | ✅ Current |
 
 ---
 
@@ -253,12 +253,21 @@ menu → matchmaking → playing → results → menu
 
 ---
 
+## Sprint 4 — Data-Driven Question Catalog ✅ COMPLETE
+
+| # | Task | Status |
+|---|------|--------|
+| 4 | Move the built-in question bank from static runtime data to PostgreSQL | ✅ |
+
+`questions` stores the stable question ID, category, difficulty, prompt, four answer options, correct answer index, and time limit. Startup seeds the original 270 questions with conflict-safe inserts, then loads the catalog into memory for the synchronous per-question game loop. Database-edited rows are preserved across restarts. Verified with 270 rows and 45 questions per category.
+
+---
+
 ## Technical Debt Log
 
 | Item | File | Impact | Sprint |
 |------|------|--------|--------|
 | `@neondatabase/serverless` in package.json (unused) | `package.json` | Low | Cleanup |
 | Guest players produce no persistent stats | `gameServer.ts` | Low (by design) | — |
-| Question bank is static code, not DB | `questionBank.ts` | Medium | Sprint 4+ |
 | Guest-owned custom categories lost on reconnect (volatile socket.id) | `customCategoryService.ts` | Low (by design) | — |
 | CORS `origin: "*"` in dev mode | `gameServer.ts` | Low | Pre-deploy |

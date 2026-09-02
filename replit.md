@@ -80,7 +80,7 @@ server/
                       # nextQuestion(): custom questions take priority over built-in bank
                       # deleteRoom(): cleans up customQuestionsMap entry
   matchmaking.ts      # ELO queue, skill-based matching, tier system
-  questionBank.ts     # 270 questions (6 categories × 3 difficulties × 15 questions)
+      questionBank.ts     # DB-backed 270-question catalog + idempotent startup seed
   storage.ts          # Drizzle ORM + PostgreSQL (pg Pool driver) + in-memory fallback
   authService.ts      # JWT signToken/verifyToken + bcrypt register/login/getUserById
   achievementService.ts # 10 achievements — checkAndAwardAchievements() uses maxStreakPerPlayer
@@ -109,6 +109,7 @@ Key tables:
 - `friendships` — requesterId, recipientId, status (pending/accepted/rejected/blocked)
 - `custom_categories` — id, name, description, createdBy (auth: "user_N", guest: socket.id), isPublic, questionCount, plays, rating
 - `custom_questions` — id, categoryId, question, option1-4, correctAnswer, difficulty, explanation
+- `questions` — stable ID, category, difficulty, question, options JSON, correctAnswer, timeLimit
 - `category_ratings` — categoryId, playerId, rating (1-5), review
 - `tournaments`, `tournament_participants`, `tournament_matches`, `player_messages`, `game_invites`
 
@@ -198,7 +199,7 @@ Triggered in `gameServer.ts → finishGame()`, persisted to `player_achievements
 ## Sprint History
 
 ### Sprint 0 — Core Loop ✅
-Core game loop, PvP/PvE rooms, ELO matchmaking, answer tracking, 10-question match limit, event-driven AI timing, GameResults screen, 270-question bank, leaderboard score accumulation, DB schema (14 tables).
+Core game loop, PvP/PvE rooms, ELO matchmaking, answer tracking, 10-question match limit, event-driven AI timing, GameResults screen, 270-question database-backed catalog, leaderboard score accumulation, DB schema (15 tables).
 
 ### Sprint 1 — Identity + Achievements ✅
 JWT auth (register/login/me endpoints), Socket.IO JWT handshake, persistent `socketToAuthId` map, 10 achievements with rarity system, `AuthModal`, `AchievementToast` with slide-in animation, `PlayerProfile` stats page, GameLobby auth integration.
